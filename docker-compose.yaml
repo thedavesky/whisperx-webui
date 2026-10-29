@@ -1,8 +1,7 @@
 services:
-  whisper-webui:
-    container_name: whisper-webui
+  whisperx-webui:
+    container_name: whisperx-webui
     build: .
-    # Removed the 'image' tag so it doesn't conflict with your local build
     
     volumes:
       - ./models:/app/models
@@ -17,7 +16,7 @@ services:
 
     environment:
       - COMMANDLINE_ARGS=--server_port 7860 --server_name 0.0.0.0
-      - TORCH_FORCE_WEIGHTS_ONLY_LOAD=0
+      - TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
 
     deploy:
       resources:
