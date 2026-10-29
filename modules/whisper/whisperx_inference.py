@@ -58,7 +58,14 @@ class WhisperXInference(BaseTranscriptionPipeline):
             or self.model is None
             or self.current_compute_type != params.compute_type
         ):
-            self.update_model(params.model_size, params.compute_type, progress)
+            self.update_model(
+                params.model_size,
+                params.compute_type,
+                progress,
+                vad_options=self._vad_options(params),
+            )
+        else:
+            self._update_vad_options(params)
 
         if self.model is None:
             msg = "WhisperX model failed to load before transcription"
@@ -173,11 +180,31 @@ class WhisperXInference(BaseTranscriptionPipeline):
                 torch.cuda.empty_cache()
                 batch_size = next_batch_size
 
+    @staticmethod
+    def _vad_options(params: WhisperParams) -> Dict[str, float]:
+        """Map the UI thresholds to the keys WhisperX expects."""
+        return {
+            "vad_onset": params.whisperx_vad_onset,
+            "vad_offset": params.whisperx_vad_offset,
+        }
+
+    def _update_vad_options(self, params: WhisperParams) -> None:
+        """Refresh the thresholds of an already loaded pipeline.
+
+        WhisperX binarizes the VAD scores at transcription time using
+        ``FasterWhisperPipeline._vad_params``, so only those values have to be
+        updated when the thresholds change.
+        """
+        vad_params = getattr(self.model, "_vad_params", None)
+        if isinstance(vad_params, dict):
+            vad_params.update(self._vad_options(params))
+
     def update_model(
         self,
         model_size: str,
         compute_type: str,
         progress: gr.Progress = gr.Progress(),
+        vad_options: Optional[Dict[str, float]] = None,
     ):
         progress(0, desc="Initializing Model..")
         self.current_model_size = model_size
@@ -187,6 +214,8 @@ class WhisperXInference(BaseTranscriptionPipeline):
             device=self.device,
             compute_type=compute_type,
             download_root=self.model_dir,
+            vad_method="pyannote",
+            vad_options=vad_options,
         )
         self.alignment_model = None
         self.alignment_metadata = None

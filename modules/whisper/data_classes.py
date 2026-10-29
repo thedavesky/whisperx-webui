@@ -397,6 +397,18 @@ class WhisperParams(BaseParams):
         le=1.0,
         description="Minimum WhisperX confidence score to keep aligned words"
     )
+    whisperx_vad_onset: float = Field(
+        default=0.5,
+        gt=0.0,
+        lt=1.0,
+        description="Pyannote VAD onset threshold used by WhisperX to start speech chunks"
+    )
+    whisperx_vad_offset: float = Field(
+        default=0.363,
+        gt=0.0,
+        lt=1.0,
+        description="Pyannote VAD offset threshold used by WhisperX to end speech chunks"
+    )
     show_confidence: bool = Field(
         default=False,
         description="Display confidence scores for segments and words",
@@ -662,6 +674,28 @@ class WhisperParams(BaseParams):
                             cls.__fields__["whisperx_confidence_threshold"].default,
                         ),
                         info=_("Discard aligned words below this WhisperX confidence score"),
+                    ),
+                    gr.Slider(
+                        minimum=0.01,
+                        maximum=0.99,
+                        step=0.001,
+                        label=_("Pyannote VAD Onset Threshold"),
+                        value=defaults.get(
+                            "whisperx_vad_onset",
+                            cls.model_fields["whisperx_vad_onset"].default,
+                        ),
+                        info=_("WhisperX's built-in speech filter. Scores above this value start a speech chunk"),
+                    ),
+                    gr.Slider(
+                        minimum=0.01,
+                        maximum=0.99,
+                        step=0.001,
+                        label=_("Pyannote VAD Offset Threshold"),
+                        value=defaults.get(
+                            "whisperx_vad_offset",
+                            cls.model_fields["whisperx_vad_offset"].default,
+                        ),
+                        info=_("WhisperX's built-in speech filter. Scores below this value end a speech chunk"),
                     ),
                     gr.Checkbox(
                         label=_("Show Confidence Scores"),

@@ -3,7 +3,7 @@ import inspect
 import os
 import time
 from dataclasses import replace
-from typing import Callable, List, Optional, Sequence, Tuple, Union
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import gradio as gr
 import numpy as np
@@ -83,6 +83,25 @@ class WhisperXWrapper:
             return "cuda" if torch.cuda.is_available() else "cpu"
         return device
 
+    @staticmethod
+    def _vad_options(params: WhisperParams) -> Dict[str, float]:
+        """Map the UI thresholds to the keys WhisperX expects."""
+        return {
+            "vad_onset": params.whisperx_vad_onset,
+            "vad_offset": params.whisperx_vad_offset,
+        }
+
+    def _update_vad_options(self, params: WhisperParams) -> None:
+        """Refresh the thresholds of an already loaded pipeline.
+
+        WhisperX binarizes the VAD scores at transcription time using
+        ``FasterWhisperPipeline._vad_params``, so only those values have to be
+        updated when the thresholds change.
+        """
+        vad_params = getattr(self._model, "_vad_params", None)
+        if isinstance(vad_params, dict):
+            vad_params.update(self._vad_options(params))
+
     def _load_model(self, params: WhisperParams, device: str) -> None:
         self._require_whisperx()
         compute_type = params.compute_type or "int8"
@@ -99,6 +118,8 @@ class WhisperXWrapper:
                 device=device,
                 compute_type=compute_type,
                 download_root=self.model_dir,
+                vad_method="pyannote",
+                vad_options=self._vad_options(params),
             )
             self._current_model_size = params.model_size
             self._current_compute_type = compute_type
@@ -203,6 +224,7 @@ class WhisperXWrapper:
         resolved_device = self._resolve_device(device)
         active_params = params
         self._load_model(active_params, resolved_device)
+        self._update_vad_options(active_params)
         self._update_asr_options(active_params)
 
         start_time = time.time()

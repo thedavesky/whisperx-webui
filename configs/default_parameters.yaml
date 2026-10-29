@@ -32,6 +32,8 @@ whisper:
   language_detection_segments: 1
   batch_size: 24
   whisperx_confidence_threshold: 0.0
+  whisperx_vad_onset: 0.5
+  whisperx_vad_offset: 0.363
   show_confidence: false
   enable_offload: true
   add_timestamp: false
