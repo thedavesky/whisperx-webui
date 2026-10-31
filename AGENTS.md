@@ -1,10 +1,10 @@
 Repository Guidelines
 Project Structure & Module Organization
 
-- The Gradio web UI boots from `app.py` at the repository root and sources feature logic from `modules/`, where subpackages cover transcription (`modules/whisper/`), diarization (`modules/diarize/`, `modules/audio/`), and shared utilities (`modules/utils/`).
+- The Gradio web UI boots from `app.py` at the repository root and sources feature logic from `modules/`, where subpackages cover transcription and speaker diarization (`modules/whisper/`, driven by upstream WhisperX), audio helpers (`modules/audio/`), and shared utilities (`modules/utils/`).
 - Backend APIs and task orchestration live in `backend/` with FastAPI routers under `backend/api/`, persistence helpers inside `backend/db/`, and fixtures + integration tests in `backend/tests/`.
 - Configuration presets, model bundles, and example notebooks are stored in `configs/`, `models/`, and `notebook/` respectively. Shell helpers (`start-webui.sh`, `Install.sh`, scripts in `scripts/`) sit at the top level.
-- UI- and pipeline-focused tests reside in `tests/`, mirroring the package they validate (for example, `tests/test_diarization.py` exercises `modules/diarize/`). Generated assets such as transcripts or diarization CSVs belong under `outputs/` and should not be committed.
+- UI- and pipeline-focused tests reside in `tests/`, mirroring the package they validate (for example, `tests/test_bgm_separation.py` exercises `modules/uvr/`). Generated assets such as transcripts or diarization CSVs belong under `outputs/` and should not be committed.
 
 Build, Test, and Development Commands
 

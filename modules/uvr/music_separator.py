@@ -11,8 +11,9 @@ import traceback
 
 from modules.utils.paths import DEFAULT_PARAMETERS_CONFIG_PATH, UVR_MODELS_DIR, UVR_OUTPUT_DIR
 from modules.utils.files_manager import load_yaml, save_yaml, is_video
-from modules.diarize.audio_loader import load_audio
+from modules.utils.audio_loader import load_audio
 from modules.utils.logger import get_logger
+
 logger = get_logger()
 
 try:

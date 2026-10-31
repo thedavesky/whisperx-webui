@@ -60,10 +60,6 @@ class DiarizationParams(BaseParams):
         default="",
         description="Hugging Face token for downloading diarization models"
     )
-    use_whisperx_diarization: bool = Field(
-        default=False,
-        description="Perform diarization with WhisperX and attach speakers to aligned words"
-    )
     assign_word_speakers: bool = Field(
         default=False,
         description="Attach speaker labels to aligned words"
@@ -113,14 +109,6 @@ class DiarizationParams(BaseParams):
                 label=_("HuggingFace Token"),
                 value=defaults.get("hf_token", cls.__fields__["hf_token"].default),
                 info=_("This is only needed the first time you download the model")
-            ),
-            gr.Checkbox(
-                label=_("Use WhisperX Diarization"),
-                value=defaults.get(
-                    "use_whisperx_diarization",
-                    cls.__fields__["use_whisperx_diarization"].default,
-                ),
-                info=_("Perform diarization with WhisperX and attach speakers to aligned words"),
             ),
             gr.Checkbox(
                 label=_("Offload sub model when finished"),

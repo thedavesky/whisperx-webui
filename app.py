@@ -230,29 +230,11 @@ class App:
                                                              device=self.whisper_inf.music_separator.device)
 
         with gr.Accordion(_("Diarization"), open=False):
-            diarizer_available_devices = getattr(self.whisper_inf.diarizer, "available_devices", None)
-            if diarizer_available_devices is None:
-                single_device = getattr(self.whisper_inf.diarizer, "available_device", None)
-                if isinstance(single_device, list):
-                    diarizer_available_devices = single_device
-                elif single_device:
-                    diarizer_available_devices = [single_device]
-                else:
-                    diarizer_available_devices = []
-            diarizer_device = getattr(self.whisper_inf.diarizer, "device", None)
-            if diarizer_device is None and diarizer_available_devices:
-                diarizer_device = diarizer_available_devices[0]
-            diarizer_available_compute_types = getattr(self.whisper_inf.diarizer, "available_compute_types", None)
-            if diarizer_available_compute_types is None:
-                diarizer_available_compute_types = []
-            if not diarizer_available_compute_types:
-                diarizer_available_compute_types = self.whisper_inf.diarizer.get_available_compute_types(diarizer_device)
-            diarizer_compute_type = getattr(self.whisper_inf.diarizer, "compute_type", None)
             diarization_inputs = DiarizationParams.to_gradio_inputs(defaults=diarization_params,
-                                                                    available_devices=diarizer_available_devices,
-                                                                    device=diarizer_device,
-                                                                    available_compute_types=diarizer_available_compute_types,
-                                                                    compute_type=diarizer_compute_type)
+                                                                    available_devices=self.whisper_inf.available_diarization_devices,
+                                                                    device=self.whisper_inf.diarization_device,
+                                                                    available_compute_types=self.whisper_inf.available_diarization_compute_types,
+                                                                    compute_type=self.whisper_inf.diarization_compute_type)
 
         whisper_offload_component = whisper_inputs.pop() if whisper_inputs else None
         diarization_offload_component = diarization_inputs.pop() if diarization_inputs else None

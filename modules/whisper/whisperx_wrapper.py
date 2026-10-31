@@ -1,16 +1,19 @@
 import gc
+import importlib
 import inspect
+import logging
 import os
 import time
 from dataclasses import replace
-from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import gradio as gr
 import numpy as np
 import torch
+from huggingface_hub import hf_hub_download
 
-from modules.diarize.diarize_pipeline import DiarizationPipeline, assign_word_speakers
-from modules.diarize.audio_loader import SAMPLE_RATE, load_audio
+from modules.utils.audio_loader import SAMPLE_RATE, load_audio
+from modules.utils.compat import ensure_diarization_compatibility
 from modules.utils.logger import get_logger
 from modules.whisper.data_classes import DiarizationParams, Segment, WhisperParams, Word
 
@@ -19,6 +22,8 @@ try:
 except ImportError:  # pragma: no cover - handled at runtime
     whisperx = None
 
+DIARIZATION_MODEL_NAME = "pyannote/speaker-diarization-3.1"
+DIARIZATION_PIPELINE_CONFIG = "config.yaml"
 
 logger = get_logger()
 
@@ -42,7 +47,7 @@ class WhisperXWrapper:
         self._align_metadata = None
         self._align_language: Optional[str] = None
 
-        self._diarization_pipeline: Optional[DiarizationPipeline] = None
+        self._diarization_pipeline: Optional[Any] = None
         self._diarization_device: Optional[str] = None
         self._diarization_token: Optional[str] = None
         self._diarization_compute_type: Optional[str] = None
@@ -61,11 +66,19 @@ class WhisperXWrapper:
 
     @staticmethod
     def _available_diarization_compute_types(device: str) -> list[str]:
-        if device in ["cuda", "xpu"]:
-            return ["float16", "float32"]
-        if device == "mps":
-            return ["float32"]
         return ["float32"]
+
+    @staticmethod
+    def _resolve_diarization_device(device: Optional[str]) -> str:
+        if device in (None, "auto"):
+            if torch.cuda.is_available():
+                return "cuda"
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
+                return "xpu"
+            if torch.backends.mps.is_available():
+                return "mps"
+            return "cpu"
+        return device
 
     @staticmethod
     def _require_whisperx() -> None:
@@ -337,21 +350,82 @@ class WhisperXWrapper:
         )
         return self._segments_from_dict(aligned_result.get("segments", []))
 
+    def _resolve_diarization_checkpoint(self, token: Optional[str]) -> str:
+        """Resolve the pyannote pipeline config into the configured model directory.
+
+        WhisperX's `DiarizationPipeline` accepts no cache directory, so the config is
+        downloaded here first and the local path is handed over. That keeps
+        `--diarization_model_dir` (and the `models/Diarization/` cache) working.
+        """
+        os.makedirs(self.diarization_model_dir, exist_ok=True)
+
+        if not os.listdir(self.diarization_model_dir) and not token:
+            raise RuntimeError(
+                "Failed to diarize. You need a Hugging Face token and must accept the model terms to download the diarization pipeline. "
+                "Visit https://huggingface.co/pyannote/speaker-diarization-3.1 to grant access, then provide the token."
+            )
+
+        return hf_hub_download(
+            DIARIZATION_MODEL_NAME,
+            DIARIZATION_PIPELINE_CONFIG,
+            repo_type="model",
+            cache_dir=self.diarization_model_dir,
+            token=token,
+        )
+
+    def _load_diarization_pipeline(
+        self,
+        diarize_module: Any,
+        device: str,
+        token: Optional[str],
+    ) -> Any:
+        """Instantiate WhisperX's own diarization pipeline."""
+        ensure_diarization_compatibility()
+        checkpoint = self._resolve_diarization_checkpoint(token)
+
+        train_logger = logging.getLogger("speechbrain.utils.train_logger")
+        train_logger.disabled = True
+        try:
+            return diarize_module.DiarizationPipeline(
+                model_name=checkpoint,
+                use_auth_token=token,
+                device=device,
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                "Failed to initialize the diarization pipeline. "
+                "Ensure the Hugging Face model access is granted and dependencies match the trained versions."
+            ) from exc
+        finally:
+            train_logger.disabled = False
+
     def diarize(
         self,
         audio: Union[str, np.ndarray],
         segments: Sequence[Segment],
         diarization_params: DiarizationParams,
     ) -> List[Segment]:
-        """Run WhisperX diarization and merge speakers into word records."""
+        """Run WhisperX diarization and merge speakers into segments and words."""
         if not segments:
             return list(segments)
 
-        resolved_device = self._resolve_device(diarization_params.diarization_device)
+        self._require_whisperx()
+        diarize_module = importlib.import_module("whisperx.diarize")
+
+        resolved_device = self._resolve_diarization_device(
+            diarization_params.diarization_device)
         token = diarization_params.hf_token or os.environ.get("HF_TOKEN")
-        available_compute_types = self._available_diarization_compute_types(resolved_device)
-        requested_compute_type = getattr(diarization_params, "compute_type", None)
+        available_compute_types = self._available_diarization_compute_types(
+            resolved_device)
+        requested_compute_type = getattr(
+            diarization_params, "compute_type", None)
         if requested_compute_type not in available_compute_types:
+            if requested_compute_type is not None:
+                logger.warning(
+                    "Diarization pipeline does not support compute_type=%s; running with %s.",
+                    requested_compute_type,
+                    available_compute_types[0],
+                )
             requested_compute_type = available_compute_types[0]
 
         if (
@@ -360,22 +434,47 @@ class WhisperXWrapper:
             or self._diarization_token != token
             or self._diarization_compute_type != requested_compute_type
         ):
-            self._diarization_pipeline = DiarizationPipeline(
-                cache_dir=self.diarization_model_dir,
+            self._diarization_pipeline = self._load_diarization_pipeline(
+                diarize_module=diarize_module,
                 device=resolved_device,
-                use_auth_token=token,
-                compute_type=requested_compute_type,
+                token=token,
             )
             self._diarization_device = resolved_device
             self._diarization_token = token
             self._diarization_compute_type = requested_compute_type
 
         diarize_df = self._diarization_pipeline(audio)
-        diarized = assign_word_speakers(
+
+        tag_word_speakers = bool(
+            getattr(diarization_params, "assign_word_speakers", False))
+        fill_nearest_speaker = bool(
+            getattr(diarization_params, "fill_nearest_speaker", False))
+
+        # WhisperX tags every word present in the payload, so the words are withheld
+        # to keep word-level speaker labels opt-in.
+        transcript_payload: Dict[str, List[dict]] = {"segments": []}
+        for segment_data in self._segments_to_dict(segments):
+            if not tag_word_speakers:
+                segment_data.pop("words", None)
+            transcript_payload["segments"].append(segment_data)
+
+        diarized = diarize_module.assign_word_speakers(
             diarize_df,
-            {"segments": self._segments_to_dict(segments)},
+            transcript_payload,
+            fill_nearest=fill_nearest_speaker,
         )
-        return self._segments_from_dict(diarized.get("segments", []), prefix_speaker=True)
+        segments_result = self._segments_from_dict(
+            diarized.get("segments", []),
+            prefix_speaker=True,
+        )
+
+        if not tag_word_speakers:
+            for segment_model, original in zip(segments_result, segments):
+                if original.words:
+                    segment_model.words = [word.model_copy()
+                                           for word in original.words]
+
+        return segments_result
 
     def offload_asr(self) -> None:
         if self._model is not None:

@@ -25,7 +25,6 @@ from modules.utils.files_manager import get_media_files, format_gradio_files, lo
 from modules.utils.audio_manager import validate_audio
 from modules.whisper.data_classes import *
 from modules.whisper.whisperx_wrapper import WhisperXWrapper
-from modules.diarize.diarizer import Diarizer
 
 
 logger = get_logger()
@@ -40,11 +39,10 @@ class BaseTranscriptionPipeline(ABC):
                  ):
         self.model_dir = model_dir
         self.output_dir = output_dir
+        self.diarization_model_dir = diarization_model_dir
         os.makedirs(self.output_dir, exist_ok=True)
         os.makedirs(self.model_dir, exist_ok=True)
-        self.diarizer = Diarizer(
-            model_dir=diarization_model_dir
-        )
+        os.makedirs(self.diarization_model_dir, exist_ok=True)
         self.music_separator = MusicSeparator(
             model_dir=uvr_model_dir,
             output_dir=os.path.join(output_dir, "UVR")
@@ -221,27 +219,18 @@ class BaseTranscriptionPipeline(ABC):
                 audio = audio.mean(axis=1) if audio.shape[1] < audio.shape[0] else audio.mean(axis=0)
             audio = audio.flatten()
             
-        # Make a copy for diarization (Pyannote) to use later
+        # Make a copy of the audio so diarization can run on the original signal later
         origin_audio = deepcopy(audio)
         # ====================================
 
         use_whisperx_alignment = getattr(whisper_params, "enable_whisperx_alignment", False)
-        
-        use_whisperx_diarization = (
-            diarization_params.is_diarize and getattr(diarization_params, "use_whisperx_diarization", False)
-        )
-        use_whisperx = use_whisperx_alignment or use_whisperx_diarization
+        use_whisperx = use_whisperx_alignment
         whisperx_language = None
-        diarization_done = False
 
         self._check_cancelled()
 
         if use_whisperx:
-            if self.whisperx_wrapper is None:
-                self.whisperx_wrapper = WhisperXWrapper(
-                    model_dir=self.model_dir,
-                    diarization_model_dir=self.diarizer.model_dir,
-                )
+            self._ensure_whisperx_wrapper()
             result, whisperx_language, elapsed_time_transcription = self.whisperx_wrapper.transcribe(
                 audio,
                 whisper_params,
@@ -273,32 +262,13 @@ class BaseTranscriptionPipeline(ABC):
         if whisper_params.enable_offload:
             self.offload()
 
-        if use_whisperx_diarization:
+        if diarization_params.is_diarize:
             progress(0.99, desc="Diarizing speakers..")
-            result = self.whisperx_wrapper.diarize(
+            result = self._diarize(
                 audio=origin_audio,
                 segments=result,
                 diarization_params=diarization_params,
             )
-            diarization_done = True
-            if diarization_params.enable_offload and self.whisperx_wrapper is not None:
-                self.whisperx_wrapper.offload_diarizer()
-
-            self._check_cancelled()
-
-        if diarization_params.is_diarize and not diarization_done:
-            progress(0.99, desc="Diarizing speakers..")
-            result, elapsed_time_diarization = self.diarizer.run(
-                audio=origin_audio,
-                use_auth_token=diarization_params.hf_token if diarization_params.hf_token else os.environ.get("HF_TOKEN"),
-                transcribed_result=result,
-                device=diarization_params.diarization_device,
-                compute_type=getattr(diarization_params, "compute_type", None),
-                tag_word_speakers=diarization_params.assign_word_speakers,
-                fill_nearest_speaker=diarization_params.fill_nearest_speaker
-            )
-            if diarization_params.enable_offload:
-                self.diarizer.offload()
 
             self._check_cancelled()
 
@@ -315,6 +285,62 @@ class BaseTranscriptionPipeline(ABC):
         progress(1.0, desc="Finished.")
         total_elapsed_time = time.time() - start_time
         return result, total_elapsed_time
+
+    def _ensure_whisperx_wrapper(self) -> WhisperXWrapper:
+        """Lazily create the WhisperX wrapper used for alignment and diarization."""
+        if self.whisperx_wrapper is None:
+            self.whisperx_wrapper = WhisperXWrapper(
+                model_dir=self.model_dir,
+                diarization_model_dir=self.diarization_model_dir,
+            )
+        return self.whisperx_wrapper
+
+    def _diarize(
+        self,
+        audio: np.ndarray,
+        segments: List[Segment],
+        diarization_params: DiarizationParams,
+    ) -> List[Segment]:
+        """Attach speaker labels to the transcribed segments with WhisperX."""
+        wrapper = self._ensure_whisperx_wrapper()
+        diarized_result = wrapper.diarize(
+            audio=audio,
+            segments=segments,
+            diarization_params=diarization_params,
+        )
+        if diarization_params.enable_offload:
+            wrapper.offload_diarizer()
+        return diarized_result
+
+    @property
+    def available_diarization_devices(self) -> List[str]:
+        devices = ["cpu"]
+        if torch.cuda.is_available():
+            devices.append("cuda")
+        if torch.xpu.is_available():
+            devices.append("xpu")
+        if torch.backends.mps.is_available():
+            devices.append("mps")
+        return devices
+
+    @property
+    def diarization_device(self) -> str:
+        if self.device in self.available_diarization_devices:
+            return self.device
+        return self.available_diarization_devices[0]
+
+    @property
+    def available_diarization_compute_types(self) -> List[str]:
+        return self.get_available_diarization_compute_types(self.diarization_device)
+
+    @property
+    def diarization_compute_type(self) -> str:
+        return self.available_diarization_compute_types[0]
+
+    @staticmethod
+    def get_available_diarization_compute_types(device: Optional[str] = None) -> List[str]:
+        """The pyannote pipeline behind WhisperX only supports full precision."""
+        return ["float32"]
 
     @staticmethod
     def _format_segments_preview(
