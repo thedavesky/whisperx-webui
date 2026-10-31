@@ -120,7 +120,6 @@ class App:
         input_folder_path,
         include_subdirectory,
         save_same_dir,
-        process_separately,
         file_format,
         add_timestamp,
         *pipeline_values,
@@ -132,7 +131,6 @@ class App:
             input_folder_path=input_folder_path,
             include_subdirectory=include_subdirectory,
             save_same_dir=save_same_dir,
-            process_separately=process_separately,
             file_format=file_format,
             add_timestamp=add_timestamp,
             pipeline_params=params,
@@ -347,7 +345,6 @@ class App:
             "input_folder_path",
             "include_subdirectory",
             "save_same_dir",
-            "process_separately",
             "file_format",
             "add_timestamp",
         ]
@@ -356,7 +353,6 @@ class App:
             "",  # input_folder_path default
             False,
             True,
-            True,
             "SRT",
             False,
         ]
@@ -364,13 +360,12 @@ class App:
         param_defaults = base_defaults + getattr(self, "pipeline_param_defaults", [])
 
         def handler(*args):
-            files, input_folder_path, include_subdirectory, save_same_dir, process_separately, file_format, add_timestamp, *pipeline_values = args
+            files, input_folder_path, include_subdirectory, save_same_dir, file_format, add_timestamp, *pipeline_values = args
             return self._transcribe_file(
                 files,
                 input_folder_path,
                 include_subdirectory,
                 save_same_dir,
-                process_separately,
                 file_format,
                 add_timestamp,
                 *pipeline_values,
@@ -577,14 +572,6 @@ class App:
                                                                 " output directory.",
                                                            visible=self.args.colab,
                                                            value=True)
-                            cb_process_separately = gr.Checkbox(
-                                label="Process files individually",
-                                info=(
-                                    "When checked, each selected file is transcribed and saved separately. "
-                                    "Uncheck to merge all selected files into a single sequential subtitle file."
-                                ),
-                                value=True,
-                            )
                         pipeline_params, dd_file_format, cb_timestamp = self.create_pipeline_inputs()
 
                         with gr.Row():
@@ -597,7 +584,6 @@ class App:
                             btn_openfolder = gr.Button('📂', scale=1)
 
                         params = [input_file, tb_input_folder, cb_include_subdirectory, cb_save_same_dir,
-                                  cb_process_separately,
                                   dd_file_format, cb_timestamp]
                         params = params + pipeline_params
                         file_run_event = btn_run.click(

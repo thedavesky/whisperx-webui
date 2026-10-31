@@ -68,7 +68,6 @@ def test_subtitle_export_with_confidence(tmp_path):
 
     _, result_files = pipeline.transcribe_file(
         files=["sample.wav"],
-        process_separately=True,
         file_format="srt",
         add_timestamp=False,
         progress=gr.Progress(),

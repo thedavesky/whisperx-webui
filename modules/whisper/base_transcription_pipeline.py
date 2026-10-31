@@ -394,7 +394,6 @@ class BaseTranscriptionPipeline(ABC):
                         input_folder_path: Optional[str] = None,
                         include_subdirectory: Optional[str] = None,
                         save_same_dir: Optional[str] = None,
-                        process_separately: bool = True,
                         file_format: str = "SRT",
                         add_timestamp: bool = True,
                         progress=gr.Progress(),
@@ -416,9 +415,6 @@ class BaseTranscriptionPipeline(ABC):
             When using `input_folder_path`, whether to save output in the same directory as inputs or not, in addition
             to the original output directory. This feature is only available when using `input_folder_path`, because
             gradio only allows to use cached file path in the function yet.
-        process_separately: bool
-            When True, transcribe each input file independently and return individual subtitle files. When False,
-            merge all processed files into a single sequential subtitle file.
         file_format: str
             Subtitle File format to write from gr.Dropdown(). Supported format: [SRT, WebVTT, txt]
         add_timestamp: bool
@@ -447,9 +443,6 @@ class BaseTranscriptionPipeline(ABC):
                 files = get_media_files(input_folder_path, include_sub_directory=include_subdirectory)
 
             files_info = {}
-            merged_segments: List[Segment] = []
-            merged_file_name = "merged_subtitles"
-            cumulative_offset = 0.0
             for file in self._iter_file_paths(files):
                 self._check_cancelled()
                 transcribed_segments, time_for_task = self.run(
@@ -500,50 +493,19 @@ class BaseTranscriptionPipeline(ABC):
                     "path": file_path
                 }
 
-                if not process_separately:
-                    merged_segments.extend(self._offset_segments(transcribed_segments, cumulative_offset))
-                    cumulative_offset += self._get_segment_duration(transcribed_segments)
-
             total_time = sum(info["time_for_task"] for info in files_info.values())
 
-            if process_separately or len(files_info) <= 1:
-                total_result = ''
-                for file_name, info in files_info.items():
-                    total_result += '------------------------------------\n'
-                    total_result += f'{file_name}\n\n'
-                    preview = info.get("preview") or info.get("subtitle")
-                    total_result += f'{preview}\n'
+            total_result = ''
+            for file_name, info in files_info.items():
+                total_result += '------------------------------------\n'
+                total_result += f'{file_name}\n\n'
+                preview = info.get("preview") or info.get("subtitle")
+                total_result += f'{preview}\n'
 
-                result_str = (
-                    f"Done in {self.format_time(total_time)}! Subtitle is in the outputs folder.\n\n{total_result}"
-                )
-                result_file_path = [info['path'] for info in files_info.values()]
-            else:
-                include_word_details = any(getattr(seg, "words", None) for seg in merged_segments)
-                include_word_speakers = (
-                    include_word_details and params.diarization.assign_word_speakers
-                )
-                merged_preview = self._format_segments_preview(
-                    merged_segments,
-                    include_word_timestamps=include_word_details,
-                    include_word_speakers=include_word_speakers,
-                    include_confidence=getattr(params.whisper, "show_confidence", False),
-                )
-                subtitle, merged_file_path = generate_file(
-                    output_dir=self.output_dir,
-                    output_file_name=merged_file_name,
-                    output_format=file_format,
-                    result=merged_segments,
-                    add_timestamp=add_timestamp,
-                    options=writer_options,
-                )
-                preview_text = merged_preview if merged_preview else subtitle
-                result_str = (
-                    "Done in {time}! Merged subtitle file is in the outputs folder.\n\n{preview}".format(
-                        time=self.format_time(total_time), preview=preview_text
-                    )
-                )
-                result_file_path = [merged_file_path]
+            result_str = (
+                f"Done in {self.format_time(total_time)}! Subtitle is in the outputs folder.\n\n{total_result}"
+            )
+            result_file_path = [info['path'] for info in files_info.values()]
 
             return result_str, result_file_path
 
@@ -552,20 +514,6 @@ class BaseTranscriptionPipeline(ABC):
         except Exception as e:
             self._handle_runtime_error_cleanup(e)
             raise RuntimeError(f"Error transcribing file: {e}") from e
-
-    @staticmethod
-    def _get_segment_duration(segments: List[Segment]) -> float:
-        if not segments:
-            return 0.0
-        max_end = max(
-            (seg.end if seg.end is not None else seg.start or 0.0)
-            for seg in segments
-        )
-        min_start = min(
-            (seg.start if seg.start is not None else 0.0)
-            for seg in segments
-        )
-        return max(max_end - min_start, 0.0)
 
     @staticmethod
     def _offset_segments(segments: List[Segment], offset: float) -> List[Segment]:
