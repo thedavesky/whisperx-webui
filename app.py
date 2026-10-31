@@ -16,11 +16,11 @@ import omegaconf
 torch.serialization.add_safe_globals([omegaconf.listconfig.ListConfig])
 # ------------------------------------------
 
-from modules.utils.paths import (FASTER_WHISPER_MODELS_DIR, DIARIZATION_MODELS_DIR, OUTPUT_DIR, WHISPER_MODELS_DIR,
-                                 INSANELY_FAST_WHISPER_MODELS_DIR, NLLB_MODELS_DIR, WHISPERX_MODELS_DIR,
+from modules.utils.paths import (DIARIZATION_MODELS_DIR, OUTPUT_DIR, WHISPER_MODELS_DIR,
+                                 NLLB_MODELS_DIR,
                                  DEFAULT_PARAMETERS_CONFIG_PATH, UVR_MODELS_DIR, I18N_YAML_PATH)
 from modules.utils.files_manager import load_yaml, MEDIA_EXTENSION
-from modules.whisper.whisper_factory import WhisperFactory
+from modules.whisper.whisperx_inference import WhisperXInference
 from modules.translation.nllb_inference import NLLBInference
 from modules.ui.htmls import *
 from modules.utils.cli_manager import str2bool
@@ -43,12 +43,9 @@ class App:
         self.theme = self._resolve_theme(self.args.theme)
         # Check every 1 hour (3600) for cached files and delete them if older than 1 day (86400)
         self.app = self._build_blocks()
-        self.whisper_inf = WhisperFactory.create_whisper_inference(
-            whisper_type=self.args.whisper_type,
-            whisper_model_dir=self.args.whisper_model_dir,
-            faster_whisper_model_dir=self.args.faster_whisper_model_dir,
-            insanely_fast_whisper_model_dir=self.args.insanely_fast_whisper_model_dir,
-            whisperx_model_dir=getattr(self.args, "whisperx_model_dir", WHISPERX_MODELS_DIR),
+        self.whisper_inf = WhisperXInference(
+            model_dir=self.args.whisperx_model_dir or self.args.whisper_model_dir,
+            diarization_model_dir=self.args.diarization_model_dir,
             uvr_model_dir=self.args.uvr_model_dir,
             output_dir=self.args.output_dir,
         )
@@ -66,7 +63,7 @@ class App:
         self.live_session = None
         self._live_session_lock = threading.Lock()
         self.live_streaming_available = True
-        logger.info(f"Use \"{self.args.whisper_type}\" implementation\n"
+        logger.info(f"Use \"{WhisperXInference.__name__}\" implementation\n"
                     f"Device \"{self.whisper_inf.device}\" is detected")
 
     @staticmethod
@@ -211,7 +208,6 @@ class App:
 
         with gr.Accordion(_("Advanced Parameters"), open=False):
             whisper_inputs = WhisperParams.to_gradio_inputs(defaults=whisper_params, only_advanced=True,
-                                                            whisper_type=self.args.whisper_type,
                                                             available_compute_types=self.whisper_inf.available_compute_types,
                                                             compute_type=self.whisper_inf.current_compute_type,
                                                             include_whisperx_controls=True)
@@ -927,9 +923,6 @@ class App:
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--whisper_type', type=str, default=WhisperImpl.WHISPERX.value,
-                    choices=[item.value for item in WhisperImpl],
-                    help='A type of the whisper implementation (Github repo name)')
 parser.add_argument('--share', type=str2bool, default=False, nargs='?', const=True, help='Gradio share value')
 parser.add_argument('--server_name', type=str, default=None, help='Gradio server host')
 parser.add_argument('--server_port', type=int, default=None, help='Gradio server port')
@@ -949,14 +942,10 @@ parser.add_argument('--ssl_keyfile', type=str, default=None, help='SSL Key file 
 parser.add_argument('--ssl_keyfile_password', type=str, default=None, help='SSL Key file password')
 parser.add_argument('--ssl_certfile', type=str, default=None, help='SSL cert file location')
 parser.add_argument('--whisper_model_dir', type=str, default=WHISPER_MODELS_DIR,
-                    help='Directory path of the whisper model')
-parser.add_argument('--faster_whisper_model_dir', type=str, default=FASTER_WHISPER_MODELS_DIR,
-                    help='Directory path of the faster-whisper model')
-parser.add_argument('--insanely_fast_whisper_model_dir', type=str,
-                    default=INSANELY_FAST_WHISPER_MODELS_DIR,
-                    help='Directory path of the insanely-fast-whisper model')
-parser.add_argument('--whisperx_model_dir', type=str, default=WHISPERX_MODELS_DIR,
-                    help='Directory path of the WhisperX model assets')
+                    help='Directory path of the Whisper model')
+parser.add_argument('--whisperx_model_dir', type=str, default=None,
+                    help='Directory path of the WhisperX model assets '
+                         '(overrides --whisper_model_dir when provided)')
 parser.add_argument('--diarization_model_dir', type=str, default=DIARIZATION_MODELS_DIR,
                     help='Directory path of the diarization model')
 parser.add_argument('--nllb_model_dir', type=str, default=NLLB_MODELS_DIR,

@@ -9,7 +9,7 @@ Project Structure & Module Organization
 Build, Test, and Development Commands
 
 1. Create an isolated environment with `python -m venv venv && source venv/bin/activate` (Windows: `python -m venv venv && venv\Scripts\activate`).
-2. Install web UI dependencies via `pip install -r requirements.txt` and add backend extras with `pip install -r backend/requirements-backend.txt` when modifying the FastAPI service. Useful ad-hoc extras include `pip install python-dotenv sqlmodel jiwer openai-whisper` for the backend test suite.
+2. Install web UI dependencies via `pip install -r requirements.txt` and add backend extras with `pip install -r backend/requirements-backend.txt` when modifying the FastAPI service. Useful ad-hoc extras include `pip install python-dotenv sqlmodel jiwer` for the backend test suite.
 3. Launch the web UI with `bash start-webui.sh` and run the API locally using `uvicorn backend.main:app --reload`.
 4. Execute the automated tests using `pytest -q` from the repository root; scope to a single module with commands such as `pytest tests/test_transcription.py::test_pipeline`. When backend services require database state, seed via `backend/scripts/` helpers before running tests.
 5. Format code with `black .` and sort imports using `isort .`; enforce lint fixes prior to committing with `ruff check --fix .` if the linter is configured for the module you are touching.

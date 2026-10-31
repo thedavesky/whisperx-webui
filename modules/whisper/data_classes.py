@@ -1,22 +1,13 @@
-import faster_whisper.transcribe
 import gradio as gr
 import torch
 from typing import Optional, Dict, List, Union, NamedTuple
 from fastapi import Query
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from gradio_i18n import Translate, gettext as _
-from enum import Enum
 from copy import deepcopy
 import yaml
 
 from modules.utils.constants import *
-
-
-class WhisperImpl(Enum):
-    WHISPER = "whisper"
-    FASTER_WHISPER = "faster-whisper"
-    INSANELY_FAST_WHISPER = "insanely_fast_whisper"
-    WHISPERX = "whisperx"
 
 
 class Segment(BaseModel):
@@ -33,36 +24,6 @@ class Segment(BaseModel):
     no_speech_prob: Optional[float] = Field(default=None, description="Probability that it's not speech")
     speaker: Optional[str] = Field(default=None, description="Speaker label for the segment")
     words: Optional[List['Word']] = Field(default=None, description="List of words contained in the segment")
-
-    @classmethod
-    def from_faster_whisper(cls,
-                            seg: faster_whisper.transcribe.Segment):
-        if seg.words is not None:
-            words = [
-                Word(
-                    start=w.start,
-                    end=w.end,
-                    word=w.word,
-                    probability=w.probability
-                ) for w in seg.words
-            ]
-        else:
-            words = None
-
-        return cls(
-            id=seg.id,
-            seek=seg.seek,
-            text=seg.text,
-            start=seg.start,
-            end=seg.end,
-            speaker=None,
-            tokens=seg.tokens,
-            temperature=seg.temperature,
-            avg_logprob=seg.avg_logprob,
-            compression_ratio=seg.compression_ratio,
-            no_speech_prob=seg.no_speech_prob,
-            words=words
-        )
 
 
 class Word(BaseModel):
@@ -375,15 +336,12 @@ class WhisperParams(BaseParams):
         cls,
         defaults: Optional[Dict] = None,
         only_advanced: Optional[bool] = True,
-        whisper_type: Optional[str] = None,
         available_models: Optional[List] = None,
         available_langs: Optional[List] = None,
         available_compute_types: Optional[List] = None,
         compute_type: Optional[str] = None,
         include_whisperx_controls: bool = True,
     ):
-        whisper_type = WhisperImpl.WHISPERX.value if whisper_type is None else whisper_type.strip().lower()
-
         inputs = []
         if not only_advanced:
             inputs += [
@@ -479,7 +437,7 @@ class WhisperParams(BaseParams):
             )
         ]
 
-        faster_whisper_inputs = [
+        whisperx_inputs = [
             gr.Number(
                 label="Length Penalty",
                 value=defaults.get("length_penalty", cls.__fields__["length_penalty"].default),
@@ -523,7 +481,7 @@ class WhisperParams(BaseParams):
             ),
         ]
         if include_whisperx_controls:
-            faster_whisper_inputs.extend(
+            whisperx_inputs.extend(
                 [
                     gr.Checkbox(
                         label="Use WhisperX Alignment",
@@ -641,31 +599,7 @@ class WhisperParams(BaseParams):
                 ]
             )
 
-        insanely_fast_whisper_inputs: list[gr.components.base.FormComponent] = []
-
-        if whisper_type == WhisperImpl.INSANELY_FAST_WHISPER.value:
-            insanely_fast_whisper_inputs = [
-                gr.Number(
-                    label="Batch Size",
-                    value=defaults.get("batch_size", cls.__fields__["batch_size"].default),
-                    precision=0,
-                    info="Batch size for processing",
-                )
-            ]
-            faster_whisper_inputs = [
-                component
-                for component in faster_whisper_inputs
-                if getattr(component, "label", None) != "Batch Size"
-            ]
-
-        if whisper_type not in (
-            WhisperImpl.FASTER_WHISPER.value,
-            WhisperImpl.WHISPERX.value,
-        ):
-            for input_component in faster_whisper_inputs:
-                input_component.visible = False
-
-        inputs += faster_whisper_inputs + insanely_fast_whisper_inputs
+        inputs += whisperx_inputs
 
         inputs += [
             gr.Checkbox(

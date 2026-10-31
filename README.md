@@ -1,5 +1,5 @@
 # Whisper-WebUI
-A Gradio-based browser interface for [Whisper](https://github.com/openai/whisper). You can use it as an Easy Subtitle Generator!
+A Gradio-based browser interface for [WhisperX](https://github.com/m-bain/whisperX). You can use it as an Easy Subtitle Generator!
 
 ![screen](https://github.com/user-attachments/assets/caea3afd-a73c-40af-a347-8d57914b1d0f)
 
@@ -9,11 +9,7 @@ A Gradio-based browser interface for [Whisper](https://github.com/openai/whisper
 If you wish to try this on Colab, you can do it in [here](https://colab.research.google.com/github/chboishabba/WhisperX-WebUI/blob/master/notebook/whisper-webui.ipynb)!
 
 # Feature
-- Select the Whisper implementation you want to use between :
-   - [openai/whisper](https://github.com/openai/whisper)
-   - [SYSTRAN/faster-whisper](https://github.com/SYSTRAN/faster-whisper)
-   - [Vaibhavs10/insanely-fast-whisper](https://github.com/Vaibhavs10/insanely-fast-whisper)
-   - [m-bain/whisperX](https://github.com/m-bain/whisperX) (used by default)
+- Transcription powered by [m-bain/whisperX](https://github.com/m-bain/whisperX)
 - Generate subtitles from various sources, including :
   - Files
   - Youtube
@@ -47,7 +43,6 @@ If you wish to try this on Colab, you can do it in [here](https://colab.research
 - `models/` caches Whisper, WhisperX diarization, NLLB, and UVR assets.
 - `outputs/` stores generated subtitles, diarization tracks, and other artifacts (do not commit).
 - `tests/` houses UI/pipeline tests that mirror the modules they exercise.
-- `scripts/` contains helper tooling such as the OpenAI Whisper installer.
 
 # Installation and Running
 
@@ -116,8 +111,7 @@ And you can also run the project with command line arguments if you like to, see
 
 - `start-webui.sh` / `start-webui.bat` activates the venv and forwards any CLI args to `app.py`.
 - `user-start-webui.bat` is a Windows-friendly way to set common CLI args before calling `start-webui.bat`.
-- `Install.sh` / `Install.bat` creates a `venv`, installs the patched OpenAI Whisper dependency via `scripts/install_openai_whisper.py`, and then installs `requirements.txt`.
-- `scripts/install_openai_whisper.py` clones `openai/whisper` and installs it without pulling extra dependencies.
+- `Install.sh` / `Install.bat` creates a `venv` and installs `requirements.txt`.
 
 ### Common CLI flags
 
@@ -126,10 +120,8 @@ You can pass CLI flags directly (Linux/macOS) or via `user-start-webui.bat` (Win
 - `--server_name` / `--server_port`
 - `--username` / `--password`
 - `--share` / `--theme` / `--api_open`
-- `--whisper_type`
-- `--whisper_model_dir` / `--faster_whisper_model_dir` / `--insanely_fast_whisper_model_dir`
+- `--whisper_model_dir` / `--whisperx_model_dir`
 - `--diarization_model_dir`
-- `--disable_faster_whisper`
 
 For the full list, run `python app.py --help` or review the wiki.
 
@@ -185,9 +177,7 @@ For the backend service, add the same token to `backend/configs/.env` (see the b
 - `outputs/` is the default landing zone for generated subtitles, diarization CSVs, and other artifacts. Keep it out of version control.
 
 # VRAM Usages
-This project starts with [WhisperX](https://github.com/m-bain/whisperX) by default to enable alignment-friendly transcriptions.
-
-The [faster-whisper](https://github.com/guillaumekln/faster-whisper) backend remains available and offers the following efficiency profile:
+Transcription always runs through [WhisperX](https://github.com/m-bain/whisperX), which executes ASR with the CTranslate2-based faster-whisper runtime that ships inside WhisperX and enables alignment-friendly transcriptions.
 
 According to faster-whisper, the efficiency of the optimized whisper model is as follows: 
 | Implementation    | Precision | Beam size | Time  | Max. GPU memory | Max. CPU memory |
@@ -195,10 +185,9 @@ According to faster-whisper, the efficiency of the optimized whisper model is as
 | openai/whisper    | fp16      | 5         | 4m30s | 11325MB         | 9439MB          |
 | faster-whisper    | fp16      | 5         | 54s   | 4755MB          | 3244MB          |
 
-If you want to use an implementation other than faster-whisper, use `--whisper_type` arg and the repository name.<br>
 Read [wiki](https://github.com/chboishabba/WhisperX-WebUI/wiki/Command-Line-Arguments) for more info about CLI args.
 
-If you want to use a fine-tuned model, manually place the models in `models/Whisper/` corresponding to the implementation.
+If you want to use a fine-tuned model, manually place the models in `models/Whisper/`.
 
 Alternatively, if you enter the huggingface repo id (e.g, [deepdml/faster-whisper-large-v3-turbo-ct2](https://huggingface.co/deepdml/faster-whisper-large-v3-turbo-ct2)) in the "Model" dropdown, it will be automatically downloaded in the directory.
 

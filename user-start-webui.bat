@@ -9,10 +9,8 @@ set PASSWORD=
 set SHARE=
 set THEME=
 set API_OPEN=
-set WHISPER_TYPE=
 set WHISPER_MODEL_DIR=
-set FASTER_WHISPER_MODEL_DIR=
-set INSANELY_FAST_WHISPER_MODEL_DIR=
+set WHISPERX_MODEL_DIR=
 set DIARIZATION_MODEL_DIR=
 
 
@@ -34,28 +32,19 @@ if /I "%SHARE%"=="true" (
 if not "%THEME%"=="" (
     set THEME_ARG=--theme %THEME%
 )
-if /I "%DISABLE_FASTER_WHISPER%"=="true" (
-    set DISABLE_FASTER_WHISPER_ARG=--disable_faster_whisper
-)
 if /I "%API_OPEN%"=="true" (
     set API_OPEN=--api_open
-)
-if not "%WHISPER_TYPE%"=="" (
-    set WHISPER_TYPE_ARG=--whisper_type %WHISPER_TYPE%
 )
 if not "%WHISPER_MODEL_DIR%"=="" (
     set WHISPER_MODEL_DIR_ARG=--whisper_model_dir "%WHISPER_MODEL_DIR%"
 )
-if not "%FASTER_WHISPER_MODEL_DIR%"=="" (
-    set FASTER_WHISPER_MODEL_DIR_ARG=--faster_whisper_model_dir "%FASTER_WHISPER_MODEL_DIR%"
-)
-if not "%INSANELY_FAST_WHISPER_MODEL_DIR%"=="" (
-    set INSANELY_FAST_WHISPER_MODEL_DIR_ARG=--insanely_fast_whisper_model_dir "%INSANELY_FAST_WHISPER_MODEL_DIR%"
+if not "%WHISPERX_MODEL_DIR%"=="" (
+    set WHISPERX_MODEL_DIR_ARG=--whisperx_model_dir "%WHISPERX_MODEL_DIR%"
 )
 if not "%DIARIZATION_MODEL_DIR%"=="" (
     set DIARIZATION_MODEL_DIR_ARG=--diarization_model_dir "%DIARIZATION_MODEL_DIR%"
 )
 
 :: Call the original .bat script with cli arguments
-start-webui.bat %SERVER_NAME_ARG% %SERVER_PORT_ARG% %USERNAME_ARG% %PASSWORD_ARG% %SHARE_ARG% %THEME_ARG% %API_OPEN% %WHISPER_TYPE_ARG% %WHISPER_MODEL_DIR_ARG% %FASTER_WHISPER_MODEL_DIR_ARG% %INSANELY_FAST_WHISPER_MODEL_DIR_ARG% %DIARIZATION_MODEL_DIR_ARG%
+start-webui.bat %SERVER_NAME_ARG% %SERVER_PORT_ARG% %USERNAME_ARG% %PASSWORD_ARG% %SHARE_ARG% %THEME_ARG% %API_OPEN% %WHISPER_MODEL_DIR_ARG% %WHISPERX_MODEL_DIR_ARG% %DIARIZATION_MODEL_DIR_ARG%
 pause

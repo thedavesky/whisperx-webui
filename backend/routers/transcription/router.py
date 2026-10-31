@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from modules.whisper.data_classes import *
 from modules.utils.paths import BACKEND_CACHE_DIR
-from modules.whisper.faster_whisper_inference import FasterWhisperInference
+from modules.whisper.whisperx_inference import WhisperXInference
 from backend.common.audio import read_audio
 from backend.common.models import QueueResponse
 from backend.common.config_loader import load_server_config
@@ -41,9 +41,9 @@ def create_progress_callback(identifier: str):
 
 
 @functools.lru_cache
-def get_pipeline() -> 'FasterWhisperInference':
+def get_pipeline() -> 'WhisperXInference':
     config = load_server_config()["whisper"]
-    inferencer = FasterWhisperInference(
+    inferencer = WhisperXInference(
         output_dir=BACKEND_CACHE_DIR
     )
     inferencer.update_model(

@@ -1,5 +1,5 @@
 whisper:
-  # Default implementation is faster-whisper. This indicates model name within `models\Whisper\faster-whisper`
+  # Default implementation is WhisperX. This indicates model name within `models\Whisper`
   model_size: large-v2
   # Compute type. 'float16' for CUDA, 'float32' for CPU.
   compute_type: float16

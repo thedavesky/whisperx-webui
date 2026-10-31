@@ -76,17 +76,9 @@ class DummyDeepLAPI:
 def test_app_launch(monkeypatch, tmp_path):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-    monkeypatch.setitem(sys.modules, "whisper", types.ModuleType("whisper"))
-
-    fake_whisper_factory = types.ModuleType("modules.whisper.whisper_factory")
-
-    class StubWhisperFactory:
-        @staticmethod
-        def create_whisper_inference(**__):
-            return DummyWhisperInference()
-
-    fake_whisper_factory.WhisperFactory = StubWhisperFactory
-    monkeypatch.setitem(sys.modules, "modules.whisper.whisper_factory", fake_whisper_factory)
+    fake_whisperx_inference_module = types.ModuleType("modules.whisper.whisperx_inference")
+    fake_whisperx_inference_module.WhisperXInference = DummyWhisperInference
+    monkeypatch.setitem(sys.modules, "modules.whisper.whisperx_inference", fake_whisperx_inference_module)
 
     fake_nllb_module = types.ModuleType("modules.translation.nllb_inference")
     fake_nllb_module.NLLBInference = DummyNllbInference
@@ -226,8 +218,6 @@ def test_app_launch(monkeypatch, tmp_path):
     args = app.parser.parse_args([])
     args.output_dir = str(tmp_path)
     args.whisper_model_dir = str(tmp_path / "whisper")
-    args.faster_whisper_model_dir = str(tmp_path / "faster-whisper")
-    args.insanely_fast_whisper_model_dir = str(tmp_path / "insanely-fast-whisper")
     args.whisperx_model_dir = str(tmp_path / "whisperx")
     args.diarization_model_dir = str(tmp_path / "diarization")
     args.nllb_model_dir = str(tmp_path / "nllb")

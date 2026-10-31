@@ -3,7 +3,7 @@ import pytest
 import gradio as gr
 import os
 
-from modules.whisper.whisper_factory import WhisperFactory
+from modules.whisper.whisperx_inference import WhisperXInference
 from modules.whisper.data_classes import *
 from modules.utils.subtitle_manager import read_file
 from modules.utils.paths import WEBUI_DIR
@@ -11,7 +11,6 @@ from test_config import *
 
 
 def run_asr_pipeline(
-    whisper_type: str,
     bgm_separation: bool,
     diarization: bool,
 ):
@@ -21,9 +20,7 @@ def run_asr_pipeline(
     if diarization:
         answer = "SPEAKER_00|"+TEST_ANSWER
 
-    whisper_inferencer = WhisperFactory.create_whisper_inference(
-        whisper_type=whisper_type,
-    )
+    whisper_inferencer = WhisperXInference()
     print(
         f"""Whisper Device : {whisper_inferencer.device}\n"""
         f"""BGM Separation Device: {whisper_inferencer.music_separator.device}\n"""
@@ -82,17 +79,5 @@ def run_asr_pipeline(
     assert wer < 0.1, f"WER is too high, it's {wer}"
 
 
-@pytest.mark.parametrize(
-    "whisper_type,bgm_separation,diarization",
-    [
-        (WhisperImpl.WHISPER.value, False, False),
-        (WhisperImpl.FASTER_WHISPER.value, False, False),
-        (WhisperImpl.INSANELY_FAST_WHISPER.value, False, False)
-    ]
-)
-def test_transcribe(
-    whisper_type: str,
-    bgm_separation: bool,
-    diarization: bool,
-):
-    run_asr_pipeline(whisper_type, bgm_separation, diarization)
+def test_transcribe():
+    run_asr_pipeline(bgm_separation=False, diarization=False)

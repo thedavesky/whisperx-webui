@@ -1,9 +1,10 @@
 import os
-import whisper
 import ctranslate2
 import gradio as gr
 import torchaudio
 import torch
+from faster_whisper import available_models
+from transformers.models.whisper.tokenization_whisper import LANGUAGES, TO_LANGUAGE_CODE
 from abc import ABC, abstractmethod
 from typing import BinaryIO, Optional, Union, Tuple, List, Callable
 import threading
@@ -51,8 +52,8 @@ class BaseTranscriptionPipeline(ABC):
 
         self.model = None
         self.current_model_size = None
-        self.available_models = whisper.available_models()
-        self.available_langs = sorted(list(whisper.tokenizer.LANGUAGES.values()))
+        self.available_models = available_models()
+        self.available_langs = sorted(LANGUAGES.values())
         self.device = self.get_device()
         self.available_compute_types = self.get_available_compute_type()
         self.current_compute_type = self.get_compute_type()
@@ -843,7 +844,7 @@ class BaseTranscriptionPipeline(ABC):
         elif params.whisper.lang == AUTOMATIC_DETECTION:
             params.whisper.lang = None
         else:
-            language_code_dict = {value: key for key, value in whisper.tokenizer.LANGUAGES.items()}
+            language_code_dict = {value: key for key, value in LANGUAGES.items()}
             params.whisper.lang = language_code_dict[params.whisper.lang]
 
         if params.whisper.initial_prompt == GRADIO_NONE_STR:
@@ -881,7 +882,7 @@ class BaseTranscriptionPipeline(ABC):
         if cached_yaml["whisper"].get("lang", None) is None:
             cached_yaml["whisper"]["lang"] = AUTOMATIC_DETECTION
         else:
-            language_dict = whisper.tokenizer.LANGUAGES
+            language_dict = LANGUAGES
             cached_yaml["whisper"]["lang"] = language_dict[cached_yaml["whisper"]["lang"]]
 
         if cached_yaml is not None and cached_yaml:

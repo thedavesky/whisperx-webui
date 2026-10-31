@@ -7,7 +7,6 @@ from typing import BinaryIO, Callable, Dict, List, Optional, Tuple, Union
 import gradio as gr
 import numpy as np
 import torch
-import whisper
 import whisperx
 
 from modules.utils.logger import get_logger
@@ -38,7 +37,6 @@ class WhisperXInference(BaseTranscriptionPipeline):
             uvr_model_dir=uvr_model_dir,
             output_dir=output_dir,
         )
-        self.available_models = whisper.available_models()
         self.alignment_model = None
         self.alignment_metadata = None
         self.current_alignment_language = None
