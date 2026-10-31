@@ -177,7 +177,6 @@ class App:
 
     def create_pipeline_inputs(self):
         whisper_params = self.default_params["whisper"]
-        vad_params = self.default_params["vad"]
         diarization_params = self.default_params["diarization"]
         uvr_params = self.default_params["bgm_separation"]
 
@@ -233,9 +232,6 @@ class App:
                                                              available_models=self.whisper_inf.music_separator.available_models,
                                                              available_devices=self.whisper_inf.music_separator.available_devices,
                                                              device=self.whisper_inf.music_separator.device)
-
-        with gr.Accordion(_("Voice Detection Filter"), open=False):
-            vad_inputs = VadParams.to_gradio_inputs(defaults=vad_params)
 
         with gr.Accordion(_("Diarization"), open=False):
             diarizer_available_devices = getattr(self.whisper_inf.diarizer, "available_devices", None)
@@ -315,11 +311,10 @@ class App:
             diarization_inputs.append(diarization_offload_component)
 
         self._prefix_labels(whisper_inputs, _("Whisper"))
-        self._prefix_labels(vad_inputs, _("VAD"))
         self._prefix_labels(diarization_inputs, _("Diarization"))
         self._prefix_labels(uvr_inputs, _("BGM Separation"))
 
-        pipeline_inputs = [dd_model, dd_lang, cb_translate] + whisper_inputs + vad_inputs + diarization_inputs + uvr_inputs
+        pipeline_inputs = [dd_model, dd_lang, cb_translate] + whisper_inputs + diarization_inputs + uvr_inputs
         self.pipeline_param_names, self.pipeline_param_defaults = self._generate_param_names(pipeline_inputs)
 
         return (

@@ -90,73 +90,6 @@ class BaseParams(BaseModel):
 
 # Models need to be wrapped with Field(Query()) to fix fastapi doc issue.
 # More info : https://github.com/fastapi/fastapi/discussions/8634#discussioncomment-5153136
-class VadParams(BaseParams):
-    """Voice Activity Detection parameters"""
-    vad_filter: bool = Field(default=False, description="Enable voice activity detection to filter out non-speech parts")
-    threshold: float = Field(
-        default=0.5,
-        ge=0.0,
-        le=1.0,
-        description="Speech threshold for Silero VAD. Probabilities above this value are considered speech"
-    )
-    min_speech_duration_ms: int = Field(
-        default=250,
-        ge=0,
-        description="Final speech chunks shorter than this are discarded"
-    )
-    max_speech_duration_s: float = Field(
-        default=float("inf"),
-        gt=0,
-        description="Maximum duration of speech chunks in seconds"
-    )
-    min_silence_duration_ms: int = Field(
-        default=2000,
-        ge=0,
-        description="Minimum silence duration between speech chunks"
-    )
-    speech_pad_ms: int = Field(
-        default=400,
-        ge=0,
-        description="Padding added to each side of speech chunks"
-    )
-
-    @classmethod
-    def to_gradio_inputs(cls, defaults: Optional[Dict] = None) -> List[gr.components.base.FormComponent]:
-        return [
-            gr.Checkbox(
-                label=_("Enable Silero VAD Filter"),
-                value=defaults.get("vad_filter", cls.__fields__["vad_filter"].default),
-                interactive=True,
-                info=_("Enable this to transcribe only detected voice")
-            ),
-            gr.Slider(
-                minimum=0.0, maximum=1.0, step=0.01, label="Speech Threshold",
-                value=defaults.get("threshold", cls.__fields__["threshold"].default),
-                info="Lower it to be more sensitive to small sounds."
-            ),
-            gr.Number(
-                label="Minimum Speech Duration (ms)", precision=0,
-                value=defaults.get("min_speech_duration_ms", cls.__fields__["min_speech_duration_ms"].default),
-                info="Final speech chunks shorter than this time are thrown out"
-            ),
-            gr.Number(
-                label="Maximum Speech Duration (s)",
-                value=defaults.get("max_speech_duration_s", GRADIO_NONE_NUMBER_MAX),
-                info="Maximum duration of speech chunks in \"seconds\"."
-            ),
-            gr.Number(
-                label="Minimum Silence Duration (ms)", precision=0,
-                value=defaults.get("min_silence_duration_ms", cls.__fields__["min_silence_duration_ms"].default),
-                info="In the end of each speech chunk wait for this time before separating it"
-            ),
-            gr.Number(
-                label="Speech Padding (ms)", precision=0,
-                value=defaults.get("speech_pad_ms", cls.__fields__["speech_pad_ms"].default),
-                info="Final speech chunks are padded by this time each side"
-            )
-        ]
-
-
 class DiarizationParams(BaseParams):
     """Speaker diarization parameters"""
     is_diarize: bool = Field(default=False, description="Enable speaker diarization")
@@ -747,14 +680,12 @@ class WhisperParams(BaseParams):
 class TranscriptionPipelineParams(BaseModel):
     """Transcription pipeline parameters"""
     whisper: WhisperParams = Field(default_factory=WhisperParams)
-    vad: VadParams = Field(default_factory=VadParams)
     diarization: DiarizationParams = Field(default_factory=DiarizationParams)
     bgm_separation: BGMSeparationParams = Field(default_factory=BGMSeparationParams)
 
     def to_dict(self) -> Dict:
         data = {
             "whisper": self.whisper.to_dict(),
-            "vad": self.vad.to_dict(),
             "diarization": self.diarization.to_dict(),
             "bgm_separation": self.bgm_separation.to_dict()
         }
@@ -767,10 +698,9 @@ class TranscriptionPipelineParams(BaseModel):
         See more about Gradio pre-processing: https://www.gradio.app/docs/components
         """
         whisper_list = self.whisper.to_list()
-        vad_list = self.vad.to_list()
         diarization_list = self.diarization.to_list()
         bgm_sep_list = self.bgm_separation.to_list()
-        return whisper_list + vad_list + diarization_list + bgm_sep_list
+        return whisper_list + diarization_list + bgm_sep_list
 
     @staticmethod
     def from_list(pipeline_list: List) -> 'TranscriptionPipelineParams':
@@ -781,10 +711,6 @@ class TranscriptionPipelineParams(BaseModel):
         whisper_list = data_list[:whisper_expected]
         data_list = data_list[len(whisper_list):]
 
-        vad_expected = len(VadParams.model_fields)
-        vad_list = data_list[:vad_expected]
-        data_list = data_list[len(vad_list):]
-
         diarization_expected = len(DiarizationParams.model_fields)
         diarization_list = data_list[:diarization_expected]
         data_list = data_list[len(diarization_list):]
@@ -794,7 +720,6 @@ class TranscriptionPipelineParams(BaseModel):
 
         return TranscriptionPipelineParams(
             whisper=WhisperParams.from_list(whisper_list),
-            vad=VadParams.from_list(vad_list),
             diarization=DiarizationParams.from_list(diarization_list),
             bgm_separation=BGMSeparationParams.from_list(bgm_sep_list)
         )

@@ -9,7 +9,6 @@ from typing import BinaryIO, Optional, Union, Tuple, List, Callable
 import threading
 import numpy as np
 from datetime import datetime
-from faster_whisper.vad import VadOptions
 import gc
 from copy import deepcopy
 import time
@@ -26,7 +25,6 @@ from modules.utils.audio_manager import validate_audio
 from modules.whisper.data_classes import *
 from modules.whisper.whisperx_wrapper import WhisperXWrapper
 from modules.diarize.diarizer import Diarizer
-from modules.vad.silero_vad import SileroVAD
 
 
 logger = get_logger()
@@ -46,7 +44,6 @@ class BaseTranscriptionPipeline(ABC):
         self.diarizer = Diarizer(
             model_dir=diarization_model_dir
         )
-        self.vad = SileroVAD()
         self.music_separator = MusicSeparator(
             model_dir=uvr_model_dir,
             output_dir=os.path.join(output_dir, "UVR")
@@ -136,7 +133,6 @@ class BaseTranscriptionPipeline(ABC):
             ) -> Tuple[List[Segment], float]:
         """
         Run transcription with conditional pre-processing and post-processing.
-        The VAD will be performed to remove noise from the audio input in pre-processing, if enabled.
         The diarization will be performed in post-processing, if enabled.
         Due to the integration with gradio, the parameters have to be specified with a `*` wildcard.
 
@@ -174,7 +170,7 @@ class BaseTranscriptionPipeline(ABC):
 
         params = TranscriptionPipelineParams.from_list(list(pipeline_params))
         params = self.validate_gradio_values(params)
-        bgm_params, vad_params, whisper_params, diarization_params = params.bgm_separation, params.vad, params.whisper, params.diarization
+        bgm_params, whisper_params, diarization_params = params.bgm_separation, params.whisper, params.diarization
 
         if bgm_params.is_separate_bgm:
             music, audio, _ = self.music_separator.separate(
@@ -208,7 +204,7 @@ class BaseTranscriptionPipeline(ABC):
             # Force mono by averaging channels if stereo
             if waveform.shape[0] > 1:
                 waveform = torch.mean(waveform, dim=0, keepdim=True)
-            # Resample to 16000Hz (Whisper/Silero requirement)
+            # Resample to 16000Hz (Whisper requirement)
             if sample_rate != 16000:
                 resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=16000)
                 waveform = resampler(waveform)
@@ -237,27 +233,6 @@ class BaseTranscriptionPipeline(ABC):
         whisperx_language = None
         diarization_done = False
 
-        if vad_params.vad_filter:
-            progress(0, desc="Filtering silent parts from audio..")
-            vad_options = VadOptions(
-                threshold=vad_params.threshold,
-                min_speech_duration_ms=vad_params.min_speech_duration_ms,
-                max_speech_duration_s=vad_params.max_speech_duration_s,
-                min_silence_duration_ms=vad_params.min_silence_duration_ms,
-                speech_pad_ms=vad_params.speech_pad_ms
-            )
-
-            vad_processed, speech_chunks = self.vad.run(
-                audio=audio,
-                vad_parameters=vad_options,
-                progress=progress
-            )
-
-            if vad_processed.size > 0:
-                audio = vad_processed
-            else:
-                vad_params.vad_filter = False
-
         self._check_cancelled()
 
         if use_whisperx:
@@ -282,16 +257,6 @@ class BaseTranscriptionPipeline(ABC):
             )
 
         self._check_cancelled()
-
-        if vad_params.vad_filter:
-            restored_result = self.vad.restore_speech_timestamps(
-                segments=result,
-                speech_chunks=speech_chunks,
-            )
-            if restored_result:
-                result = restored_result
-            else:
-                logger.info("VAD detected no speech segments in the audio.")
 
         if use_whisperx_alignment:
             progress(0.95, desc="Aligning with WhisperX..")
@@ -893,8 +858,6 @@ class BaseTranscriptionPipeline(ABC):
             params.whisper.hallucination_silence_threshold = None
         if params.whisper.language_detection_threshold == GRADIO_NONE_NUMBER_MIN:
             params.whisper.language_detection_threshold = None
-        if params.vad.max_speech_duration_s == GRADIO_NONE_NUMBER_MAX:
-            params.vad.max_speech_duration_s = float('inf')
         return params
 
     @staticmethod
@@ -920,9 +883,6 @@ class BaseTranscriptionPipeline(ABC):
         else:
             language_dict = whisper.tokenizer.LANGUAGES
             cached_yaml["whisper"]["lang"] = language_dict[cached_yaml["whisper"]["lang"]]
-
-        if cached_yaml["vad"].get("max_speech_duration_s", float('inf')) == float('inf'):
-            cached_yaml["vad"]["max_speech_duration_s"] = GRADIO_NONE_NUMBER_MAX
 
         if cached_yaml is not None and cached_yaml:
             save_yaml(cached_yaml, DEFAULT_PARAMETERS_CONFIG_PATH)

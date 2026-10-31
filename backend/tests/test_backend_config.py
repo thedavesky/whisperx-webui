@@ -17,10 +17,8 @@ from modules.utils.paths import *
 from modules.utils.files_manager import load_yaml, save_yaml
 
 TEST_PIPELINE_PARAMS = {**WhisperParams(model_size="tiny.en", compute_type="float32").model_dump(exclude_none=True),
-                        **VadParams().model_dump(exclude_none=True),
                         **BGMSeparationParams().model_dump(exclude_none=True),
                         **DiarizationParams().model_dump(exclude_none=True)}
-TEST_VAD_PARAMS = VadParams().model_dump()
 TEST_BGM_SEPARATION_PARAMS = BGMSeparationParams().model_dump()
 TEST_FILE_DOWNLOAD_URL = "https://github.com/jhj0517/whisper_flutter_new/raw/main/example/assets/jfk.wav"
 TEST_FILE_PATH = os.path.join(WEBUI_DIR, "backend", "tests", "jfk.wav")

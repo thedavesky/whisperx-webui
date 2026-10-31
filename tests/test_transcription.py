@@ -12,7 +12,6 @@ from test_config import *
 
 def run_asr_pipeline(
     whisper_type: str,
-    vad_filter: bool,
     bgm_separation: bool,
     diarization: bool,
 ):
@@ -37,9 +36,6 @@ def run_asr_pipeline(
 
     hparams = TranscriptionPipelineParams(
         whisper=whisper_params,
-        vad=VadParams(
-            vad_filter=vad_filter
-        ),
         bgm_separation=BGMSeparationParams(
             is_separate_bgm=bgm_separation,
             enable_offload=True
@@ -87,17 +83,16 @@ def run_asr_pipeline(
 
 
 @pytest.mark.parametrize(
-    "whisper_type,vad_filter,bgm_separation,diarization",
+    "whisper_type,bgm_separation,diarization",
     [
-        (WhisperImpl.WHISPER.value, False, False, False),
-        (WhisperImpl.FASTER_WHISPER.value, False, False, False),
-        (WhisperImpl.INSANELY_FAST_WHISPER.value, False, False, False)
+        (WhisperImpl.WHISPER.value, False, False),
+        (WhisperImpl.FASTER_WHISPER.value, False, False),
+        (WhisperImpl.INSANELY_FAST_WHISPER.value, False, False)
     ]
 )
 def test_transcribe(
     whisper_type: str,
-    vad_filter: bool,
     bgm_separation: bool,
     diarization: bool,
 ):
-    run_asr_pipeline(whisper_type, vad_filter, bgm_separation, diarization)
+    run_asr_pipeline(whisper_type, bgm_separation, diarization)

@@ -10,7 +10,6 @@ import threading
 
 from backend.db.db_instance import init_db
 from backend.routers.transcription.router import transcription_router, get_pipeline
-from backend.routers.vad.router import get_vad_model, vad_router
 from backend.routers.bgm_separation.router import get_bgm_separation_inferencer, bgm_separation_router
 from backend.routers.task.router import task_router
 from backend.common.config_loader import read_env, load_server_config
@@ -40,7 +39,6 @@ async def lifespan(app: FastAPI):
 
     # Inferencer initialization
     transcription_pipeline = get_pipeline()
-    vad_inferencer = get_vad_model()
     bgm_separation_inferencer = get_bgm_separation_inferencer()
 
     # Thread initialization
@@ -51,7 +49,6 @@ async def lifespan(app: FastAPI):
 
     # Release VRAM when server shutdown
     transcription_pipeline = None
-    vad_inferencer = None
     bgm_separation_inferencer = None
 
 
@@ -78,7 +75,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(transcription_router)
-app.include_router(vad_router)
 app.include_router(bgm_separation_router)
 app.include_router(task_router)
 

@@ -5,7 +5,6 @@ import numpy as np
 import torch
 from typing import BinaryIO, Union, Tuple, List, Callable
 import faster_whisper
-from faster_whisper.vad import VadOptions
 import ast
 import ctranslate2
 import whisper

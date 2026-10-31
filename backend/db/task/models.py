@@ -31,7 +31,6 @@ class TaskStatus(str, Enum):
 
 class TaskType(str, Enum):
     TRANSCRIPTION = "transcription"
-    VAD = "vad"
     BGM_SEPARATION = "bgm_separation"
 
     def __str__(self):
@@ -181,4 +180,3 @@ class Task(SQLModel, table=True):
 
 class TasksResult(BaseModel):
     tasks: List[Task]
-

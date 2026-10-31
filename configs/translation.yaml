@@ -15,10 +15,6 @@ en:
   Device: Device
   Save separated files to output: Save separated files to output
   Background Music Remover Filter: Background Music Remover Filter
-  Enable this to transcribe only detected voice: Enable this to transcribe only detected
-    voice parts by submodel.
-  Enable Silero VAD Filter: Enable Silero VAD Filter
-  Voice Detection Filter: Voice Detection Filter
   Enable Diarization: Enable Diarization
   This is only needed the first time you download the model: This is only needed the
     first time you download the model. If you already have models, you don't need
@@ -76,9 +72,6 @@ ko:
   Device: 디바이스
   Save separated files to output: 분리된 배경 음악 & 음성 파일 따로 출력 폴더에 저장
   Background Music Remover Filter: 배경 음악 제거 필터
-  Enable this to transcribe only detected voice: 서브 모델에 의해 목소리라고 판단된 부분만 받아쓰기를 진행합니다.
-  Enable Silero VAD Filter: Silero VAD 필터 활성화
-  Voice Detection Filter: 목소리 감지 필터
   Enable Diarization: 화자 구분 활성화
   This is only needed the first time you download the model: 모델을 처음 다운받을 때만 토큰이 필요합니다.
     이미 다운로드 받으신 상태라면 입력하지 않아도 됩니다. 모델을 다운 받기 위해선 "https://huggingface.co/pyannote/speaker-diarization-3.1"
@@ -135,10 +128,6 @@ ja:
   Device: Device
   Save separated files to output: Save separated files to output
   Background Music Remover Filter: Background Music Remover Filter
-  Enable this to transcribe only detected voice: Enable this to transcribe only detected
-    voice parts by submodel.
-  Enable Silero VAD Filter: Enable Silero VAD Filter
-  Voice Detection Filter: Voice Detection Filter
   Enable Diarization: Enable Diarization
   This is only needed the first time you download the model: This is only needed the
     first time you download the model. If you already have models, you don't need
@@ -197,10 +186,6 @@ es:
   Device: Device
   Save separated files to output: Save separated files to output
   Background Music Remover Filter: Background Music Remover Filter
-  Enable this to transcribe only detected voice: Enable this to transcribe only detected
-    voice parts by submodel.
-  Enable Silero VAD Filter: Enable Silero VAD Filter
-  Voice Detection Filter: Voice Detection Filter
   Enable Diarization: Enable Diarization
   This is only needed the first time you download the model: This is only needed the
     first time you download the model. If you already have models, you don't need
@@ -261,10 +246,6 @@ fr:
   Device: Périphérique
   Save separated files to output: Sauvegarder les fichiers séparés dans la sortie
   Background Music Remover Filter: Filtre de suppression de musique de fond
-  Enable this to transcribe only detected voice: Activer pour transcrire uniquement
-    la voix détectée
-  Enable Silero VAD Filter: Activer le filtre Silero VAD
-  Voice Detection Filter: Filtre de détection vocale
   Enable Diarization: Activer la diarisation
   This is only needed the first time you download the model: Le token n'est nécessaire
     que lors du premier téléchargement du modèle. Si vous avez déjà les modèles, vous
@@ -325,10 +306,6 @@ de:
   Device: Gerät
   Save separated files to output: Getrennte Dateien in der Ausgabe speichern
   Background Music Remover Filter: Hintergrundmusik-Entfernungsfilter
-  Enable this to transcribe only detected voice: Aktivieren, um nur erkannte Sprachsegmente
-    mithilfe des Submodells zu transkribieren.
-  Enable Silero VAD Filter: Silero VAD-Filter aktivieren
-  Voice Detection Filter: Sprachfilter
   Enable Diarization: Diarisierung aktivieren
   This is only needed the first time you download the model: Dies ist nur erforderlich,
     wenn Sie das Modell zum ersten Mal herunterladen. Falls Sie die Modelle bereits
@@ -389,9 +366,6 @@ nl:
   Device: Apparaat
   Save separated files to output: Resultaat als aparte bestanden opslaan
   Background Music Remover Filter: Achtergrondmuziek-verwijderingsfilter
-  Enable this to transcribe only detected voice: Hiermee worden alleen de door het submodel gedetecteerde stemsegmenten getranscribeerd
-  Enable Silero VAD Filter: Silero VAD-filter inschakelen
-  Voice Detection Filter: Stemdetectie-filter
   Enable Diarization: Diarisatie inschakelen
   This is only needed the first time you download the model: Dit is alleen nodig de eerste keer dat
     je het model downloadt. Als je al modellen hebt, is dit niet nodig. Om het model te downloaden
@@ -448,9 +422,6 @@ zh:
   Device: 设备
   Save separated files to output: 导出分离出的音频文件
   Background Music Remover Filter: 背景音乐消除设置
-  Enable this to transcribe only detected voice: 启用此功能将仅转录检测到的语音部分
-  Enable Silero VAD Filter: 启用 Silero 语音活动检测 (VAD)
-  Voice Detection Filter: 话音检测设置
   Enable Diarization: 进行说话人分离处理
   This is only needed the first time you download the model: 当且仅当您首次下载模型时才需要在此输入令牌，如果您已有模型则无需输入。
     要下载模型，您必须先在"https://huggingface.co/pyannote/speaker-diarization-3.1" 与 "https://huggingface.co/pyannote/segmentation-3.0"
@@ -507,10 +478,6 @@ uk:
   Device: Пристрій
   Save separated files to output: Зберегти розділені файли до вихідної папки
   Background Music Remover Filter: Фільтр видалення фонової музики
-  Enable this to transcribe only detected voice: Увімкніть це, щоб транскрибувати
-    лише розпізнані голосові частини за допомогою підмоделі
-  Enable Silero VAD Filter: Увімкнути фільтр Silero VAD
-  Voice Detection Filter: Фільтр розпізнавання голосу
   Enable Diarization: Увімкнути діаризацію
   This is only needed the first time you download the model: Це потрібно лише при
     першому завантаженні моделі. Якщо у вас вже є моделі, вводити не потрібно. Щоб
@@ -571,10 +538,6 @@ ru:
   Device: Устройство
   Save separated files to output: Сохранить разделенные файлы в выходную папку
   Background Music Remover Filter: Фильтр удаления фоновой музыки
-  Enable this to transcribe only detected voice: Включите это, чтобы транскрибировать
-    только обнаруженные голосовые части с помощью подмодели
-  Enable Silero VAD Filter: Включить фильтр Silero VAD
-  Voice Detection Filter: Фильтр обнаружения голоса
   Enable Diarization: Включить диаризацию
   This is only needed the first time you download the model: Это нужно только при
     первом скачивании модели. Если у вас уже есть модели, вводить не нужно. Чтобы
@@ -634,10 +597,6 @@ tr:
   Device: Cihaz
   Save separated files to output: Ayrılmış dosyaları çıktıya kaydet
   Background Music Remover Filter: Arka Plan Müziği Kaldırma Filtresi
-  Enable this to transcribe only detected voice: Bunu etkinleştirerek yalnızca alt
-    model tarafından algılanan ses kısımlarını transkribe et
-  Enable Silero VAD Filter: Silero VAD Filtresini Etkinleştir
-  Voice Detection Filter: Ses Algılama Filtresi
   Enable Diarization: Konuşmacı Ayrımını Etkinleştir
   This is only needed the first time you download the model: Bu, modeli ilk kez indirirken
     gereklidir. Zaten modelleriniz varsa girmenize gerek yok. Modeli indirmek için
@@ -697,10 +656,6 @@ eu:
   Device: Gailua
   Save separated files to output: Gorde fitxategi bereiziak irteeran
   Background Music Remover Filter: Atzeko Musika Ezabatzeko Filtroa
-  Enable this to transcribe only detected voice: Aktibatu hau azpieredu batekin soilik
-    detektatutako ahots zatiak transkribatzeko.
-  Enable Silero VAD Filter: Aktibatu Silero VAD Filtroa
-  Voice Detection Filter: Ahots Detekzio Filtroa
   Enable Diarization: Aktibatu Diarizazioa
   This is only needed the first time you download the model: Soilik beharrezkoa eredua
     deskargatzen den lehen aldian. Jadanik eredu hauek deskargatuta, ez duzu berriz
@@ -765,9 +720,6 @@ he: # Hebrew
   Enable Background Music Remover Filter: אפשר מסנן הסרת מוזיקת רקע
   Save separated files to output: שמור קבצים מופרדים לפלט
   Offload sub model when finished: נתק מודל משנה לאחר סיום
-  Voice Detection Filter: מסנן זיהוי קול
-  Enable this to transcribe only detected voice: אפשר זאת כדי לתמלל רק קטעי קול שזוהו על ידי מודל המשנה
-  Enable Silero VAD Filter: אפשר מסנן Silero VAD
   Diarization: דיאריזציה (זיהוי דוברים)
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
   Enable WhisperX Alignment: Enable WhisperX Alignment
@@ -812,9 +764,6 @@ zh-TW:
   Device: 裝置
   Save separated files to output: 將分離的檔案儲存至輸出資料夾
   Background Music Remover Filter: 背景音樂移除濾波器
-  Enable this to transcribe only detected voice: 啟用此功能，只轉錄子模型偵測到的語音部分
-  Enable Silero VAD Filter: 啟用 Silero VAD 濾波器
-  Voice Detection Filter: 語音偵測濾波器
   Enable Diarization: 啟用語者分離（Diarization）
   This is only needed the first time you download the model: 只有第一次下載模型時才需要此步驟。
      如果您已經有模型，則無需輸入。若要下載模型，您必須手動前往 "https://huggingface.co/pyannote/speaker-diarization-3.1" 和 "https://huggingface.co/pyannote/segmentation-3.0" 並同意其要求

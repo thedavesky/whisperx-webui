@@ -38,13 +38,6 @@ whisper:
   enable_offload: true
   add_timestamp: false
   file_format: SRT
-vad:
-  vad_filter: true
-  threshold: 0.5
-  min_speech_duration_ms: 250
-  max_speech_duration_s: 9999
-  min_silence_duration_ms: 2000
-  speech_pad_ms: 400
 diarization:
   is_diarize: false
   diarization_device: cuda

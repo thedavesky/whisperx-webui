@@ -103,7 +103,6 @@ async def transcription(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(..., description="Audio or video file to transcribe."),
     whisper_params: WhisperParams = Depends(),
-    vad_params: VadParams = Depends(),
     bgm_separation_params: BGMSeparationParams = Depends(),
     diarization_params: DiarizationParams = Depends(),
 ) -> QueueResponse:
@@ -114,7 +113,6 @@ async def transcription(
 
     params = TranscriptionPipelineParams(
         whisper=whisper_params,
-        vad=vad_params,
         bgm_separation=bgm_separation_params,
         diarization=diarization_params
     )

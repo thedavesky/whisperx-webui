@@ -14,7 +14,6 @@ from modules.whisper.data_classes import (
     DiarizationParams,
     Segment,
     TranscriptionPipelineParams,
-    VadParams,
     WhisperParams,
     Word,
 )
@@ -63,7 +62,6 @@ def test_subtitle_export_with_confidence(tmp_path):
 
     params = TranscriptionPipelineParams(
         whisper=whisper_params,
-        vad=VadParams(),
         diarization=DiarizationParams(),
         bgm_separation=BGMSeparationParams(),
     )

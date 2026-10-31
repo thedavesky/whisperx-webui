@@ -28,20 +28,20 @@ If you wish to try this on Colab, you can do it in [here](https://colab.research
 - Text to Text Translation
   - Translate subtitle files using Facebook NLLB models
   - Translate subtitle files using DeepL API
-- Pre-processing audio input with [Silero VAD](https://github.com/snakers4/silero-vad).
 - Pre-processing audio input to separate BGM with [UVR](https://github.com/Anjok07/ultimatevocalremovergui). 
 - Post-processing with speaker diarization using the [pyannote](https://huggingface.co/pyannote/speaker-diarization-3.1) model.
    - To download the pyannote model, you need to have a Huggingface token and manually accept their terms in the pages below.
       1. https://huggingface.co/pyannote/speaker-diarization-3.1
       2. https://huggingface.co/pyannote/segmentation-3.0
 - Word-level alignment and diarization powered by [WhisperX](https://github.com/m-bain/whisperX) for precise timestamps.
+- Speech segmentation is handled internally by WhisperX's built-in Pyannote VAD.
 
 ### Pipeline Diagram
 ![Transcription Pipeline](https://github.com/user-attachments/assets/1d8c63ac-72a4-4a0b-9db0-e03695dcf088)
 
 ## Project Layout
 - `app.py` boots the Gradio WebUI and wires UI callbacks to the feature modules.
-- `modules/` holds implementation details (transcription, diarization, translation, UVR/VAD, UI helpers, and utilities).
+- `modules/` holds implementation details (transcription, diarization, translation, UVR, UI helpers, and utilities).
 - `backend/` ships the FastAPI service, routers, configs, and API tests.
 - `configs/` contains default runtime parameters and language packs.
 - `models/` caches Whisper, WhisperX diarization, NLLB, and UVR assets.

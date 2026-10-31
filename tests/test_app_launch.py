@@ -43,6 +43,10 @@ class DummyWhisperInference:
     def transcribe_mic(*_, **__):
         return "ok", []
 
+    @staticmethod
+    def set_cancel_event(*_, **__):
+        return None
+
 
 class DummyNllbInference:
     def __init__(self, *_, **__):
@@ -94,6 +98,8 @@ def test_app_launch(monkeypatch, tmp_path):
 
     fake_yt_module = types.ModuleType("modules.utils.youtube_manager")
     fake_yt_module.get_ytmetas = lambda *_, **__: (None, None, None)
+    fake_yt_module.get_ytdata = lambda *_, **__: None
+    fake_yt_module.get_ytaudio = lambda *_, **__: None
     monkeypatch.setitem(sys.modules, "modules.utils.youtube_manager", fake_yt_module)
 
     monkeypatch.setattr(sys, "argv", ["app.py"])
@@ -110,6 +116,9 @@ def test_app_launch(monkeypatch, tmp_path):
             return self
 
         def change(self, *_, **__):
+            return self
+
+        def stream(self, *_, **__):
             return self
 
     class DummyContext(DummyComponent):
@@ -169,13 +178,6 @@ def test_app_launch(monkeypatch, tmp_path):
             "file_format": "SRT",
             "is_translate": False,
             "add_timestamp": False,
-        },
-        "vad": {
-            "vad_filter": False,
-            "threshold": 0,
-            "min_speech_duration_ms": 0,
-            "min_silence_duration_ms": 0,
-            "speech_pad_ms": 0,
         },
         "diarization": {
             "is_diarize": False,
