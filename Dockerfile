@@ -3,7 +3,7 @@ FROM nvidia/cuda:12.6.2-cudnn-runtime-ubuntu22.04
 
 # 2. Install system dependencies + Build Tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.10 python3-pip python3-setuptools python3-dev git ffmpeg libportaudio2 \
+    python3.10 python3-pip python3-setuptools python3-dev git ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Alias python3 to python

@@ -4,7 +4,6 @@ dotenv
 torch
 torchaudio==2.7.1
 numpy<2.3
-sounddevice
 faster-whisper
 ctranslate2
 transformers

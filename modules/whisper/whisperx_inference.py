@@ -383,8 +383,6 @@ class WhisperXInference(BaseTranscriptionPipeline):
         except WorkerCancelled as exc:
             raise gr.Error("Transcription cancelled") from exc
         except WorkerError as exc:
-            # Live sessions call _run_pipeline directly and keep running after a
-            # failed chunk, so a failed worker must not stay warm.
             self.offload()
             raise RuntimeError(f"Inference worker failed: {exc}") from exc
 

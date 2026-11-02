@@ -529,24 +529,6 @@ class BaseTranscriptionPipeline(ABC):
             finally:
                 self.offload()
 
-    @staticmethod
-    def _offset_segments(segments: List[Segment], offset: float) -> List[Segment]:
-        adjusted_segments: List[Segment] = []
-        for seg in segments:
-            seg_copy = Segment(**seg.dict()) if hasattr(seg, "dict") else Segment(**seg.__dict__)
-            if seg_copy.start is not None:
-                seg_copy.start += offset
-            if seg_copy.end is not None:
-                seg_copy.end += offset
-            if getattr(seg_copy, "words", None):
-                for word in seg_copy.words:
-                    if word.start is not None:
-                        word.start += offset
-                    if word.end is not None:
-                        word.end += offset
-            adjusted_segments.append(seg_copy)
-        return adjusted_segments
-
     def transcribe_mic(self,
                        mic_audio: str,
                        file_format: str = "SRT",

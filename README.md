@@ -14,7 +14,6 @@ If you wish to try this on Colab, you can do it in [here](https://colab.research
   - Files
   - Youtube
   - Microphone
-  - Live microphone or system-loopback capture with incremental transcripts
 - Currently supported subtitle formats : 
   - SRT
   - WebVTT
@@ -125,18 +124,6 @@ You can pass CLI flags directly (Linux/macOS) or via `user-start-webui.bat` (Win
 
 For the full list, run `python app.py --help` or review the wiki.
 
-### Live Transcription
-
-The **Live** tab streams audio directly from your microphone or any loopback-capable output device. This mode depends on the `sounddevice` dependency (which bundles PortAudio), so make sure your platform can install the library (`libportaudio-dev` on Ubuntu/Debian, vcpkg or prebuilt wheels on Windows/macOS). Once the prerequisites are in place:
-
-1. Open the **Live** tab in Whisper-WebUI.
-2. Select the desired audio device from the dropdown (microphones, USB headsets, or output devices that expose loopback channels).
-3. Toggle **Capture system output** to pick up everything playing through the selected output device (the WASAPI host on Windows exposes loopback devices; other hosts may also support it).
-4. Adjust the chunk duration if you need faster updates, then press **Start Live Transcription**.
-5. Watch the incremental transcript appear in the textbox. Press **Stop Live Transcription** to flush the remaining data and download the generated subtitle file.
-
-Avoid launching large batch transcriptions while a live session is running so the shared Whisper backend is not taxed by multiple jobs at once.
-
 ### Dependency notes
 
 - `torchaudio` is pinned to 2.7.1 in [`requirements.txt`](./requirements.txt). Releases starting with 2.8 removed the `AudioMetaData` helper that our diarization pipeline imports, which triggers an `AttributeError` during transcription/diarization runs. Upgrade deliberately once the codebase stops relying on that class (or after adding a compatibility shim).
@@ -206,7 +193,6 @@ If you're interested in deploying this app as a REST API, please check out [/bac
 - [x] Add background music separation pre-processing with [UVR](https://github.com/Anjok07/ultimatevocalremovergui)  
 - [x] Add fast api script
 - [x] Add CLI usages
-- [x] Support live transcription from microphone and system audio
 
 ### Translation 🌐
 Any PRs that translate the language into [translation.yaml](https://github.com/chboishabba/WhisperX-WebUI/blob/master/configs/translation.yaml) would be greatly appreciated!

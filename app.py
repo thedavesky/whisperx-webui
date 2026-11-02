@@ -3,7 +3,6 @@ import argparse
 import inspect
 import threading
 import gradio as gr
-import numpy as np
 from gradio_i18n import Translate, gettext as _
 import yaml
 import re
@@ -26,10 +25,6 @@ from modules.ui.htmls import *
 from modules.utils.cli_manager import str2bool
 from modules.utils.youtube_manager import get_ytmetas
 from modules.translation.deepl_api import DeepLAPI
-from modules.streaming.live_transcription import (
-    BrowserLiveTranscriptionSession,
-    LiveTranscriptionError,
-)
 from modules.whisper.data_classes import *
 from modules.utils.logger import get_logger
 
@@ -60,9 +55,6 @@ class App:
         )
         self.i18n = load_yaml(I18N_YAML_PATH)
         self.default_params = load_yaml(DEFAULT_PARAMETERS_CONFIG_PATH)
-        self.live_session = None
-        self._live_session_lock = threading.Lock()
-        self.live_streaming_available = True
         logger.info(f"Use \"{WhisperXInference.__name__}\" implementation\n"
                     f"Device \"{self.whisper_inf.device}\" is detected")
 
@@ -480,110 +472,6 @@ class App:
         )
         return handler
 
-    def _start_live_transcription(
-            self,
-            chunk_seconds,
-            file_format,
-            add_timestamp,
-            *pipeline_values,
-    ):
-        if not self.live_streaming_available:
-            return (
-                _("Live transcription is unavailable because no audio device was detected."),
-                "",
-                gr.update(value=[]),
-                None,
-            )
-
-        with self._live_session_lock:
-            if self.live_session and self.live_session.is_active():
-                return (
-                    _("Live transcription is already running."),
-                    self.live_session.get_transcript_text(),
-                    gr.update(value=[]),
-                    None,
-                )
-
-        pipeline_params = self._pipeline_from_values(*pipeline_values)
-        chunk_seconds = float(chunk_seconds or 8.0)
-        chunk_seconds = max(1.0, chunk_seconds)
-
-        session = BrowserLiveTranscriptionSession(
-            pipeline=self.whisper_inf,
-            pipeline_params=pipeline_params,
-            chunk_seconds=chunk_seconds,
-            sample_rate=16000,
-            file_format=file_format,
-            add_timestamp=bool(add_timestamp),
-        )
-
-        try:
-            session.start()
-        except LiveTranscriptionError as exc:
-            return (str(exc), "", gr.update(value=[]), None)
-
-        with self._live_session_lock:
-            self.live_session = session
-
-        status = _("Live transcription started.")
-        return status, "", gr.update(value=[]), None
-
-    def _stop_live_transcription(self):
-        with self._live_session_lock:
-            session = self.live_session
-            self.live_session = None
-
-        if not session or not session.is_active():
-            return (_("Live transcription is not running."), "", gr.update(value=[]), None)
-
-        try:
-            _result_text, path = session.stop()
-            status = _("Live transcription stopped.")
-        except LiveTranscriptionError as exc:
-            status = str(exc)
-            path = None
-
-        transcript = session.get_transcript_text()
-        files_update = gr.update(value=[path]) if path else gr.update(value=[])
-        return status, transcript, files_update, None
-
-    def _poll_live_transcription(self):
-        with self._live_session_lock:
-            session = self.live_session
-
-        if not session or not session.is_active():
-            return "", _("Idle"), None
-
-        latest_audio = session.get_latest_audio()
-        audio = (session.sample_rate, latest_audio) if isinstance(latest_audio, np.ndarray) else None
-        return session.get_transcript_text(), session.get_status(), audio
-
-    def _stream_live_audio(self, audio):
-        with self._live_session_lock:
-            session = self.live_session
-
-        if not session or not session.is_active():
-            return "", _("Idle"), None
-
-        if not audio or not isinstance(audio, (list, tuple)) or len(audio) != 2:
-            return session.get_transcript_text(), session.get_status(), None
-
-        sample_rate, data = audio
-        
-        # --- NEW SAFEGUARD: Force stereo mic inputs to mono ---
-        if isinstance(data, np.ndarray) and data.ndim > 1:
-            data = data.mean(axis=1)
-        # ------------------------------------------------------
-        
-        try:
-            session.ingest_audio(data, int(sample_rate))
-        except Exception as exc:
-            return session.get_transcript_text(), str(exc), None
-
-        latest_audio = session.get_latest_audio()
-        waveform = (session.sample_rate, latest_audio) if isinstance(latest_audio, np.ndarray) else None
-        return session.get_transcript_text(), session.get_status(), waveform
-
     def launch(self):
         translation_params = self.default_params["translation"]
         deepl_params = translation_params["deepl"]
@@ -741,66 +629,6 @@ class App:
                         )
                         cancel_all_buttons.append((btn_cancel_all_mic, tb_indicator))
                         btn_openfolder.click(fn=lambda: self.open_folder("outputs"), inputs=None, outputs=None)
-
-                    with gr.TabItem(_("Live")):  # tab5
-                        with gr.Row():
-                            live_audio_kwargs = {
-                                "label": _("Live Input (Browser Mic)"),
-                                "type": "numpy",
-                            }
-                            if self._component_accepts(gr.Audio, "sources"):
-                                live_audio_kwargs["sources"] = ["microphone"]
-                            elif self._component_accepts(gr.Audio, "source"):
-                                live_audio_kwargs["source"] = "microphone"
-                            if self._component_accepts(gr.Audio, "streaming"):
-                                live_audio_kwargs["streaming"] = True
-                            live_mic_stream = gr.Audio(**live_audio_kwargs)
-                        with gr.Row():
-                            nb_chunk_seconds = gr.Number(
-                                label=_("Chunk duration (seconds)"),
-                                value=8.0,
-                                precision=1,
-                            )
-                        live_params, live_dd_file_format, live_cb_timestamp = self.create_pipeline_inputs()
-                        with gr.Row():
-                            btn_live_start = gr.Button(
-                                _("Start Live Transcription"), variant="primary",
-                                interactive=self.live_streaming_available
-                            )
-                            btn_live_stop = gr.Button(
-                                _("Stop Live Transcription"), variant="secondary",
-                                interactive=self.live_streaming_available
-                            )
-                        with gr.Row():
-                            tb_live_status = gr.Textbox(label=_("Live Status"), value=_("Idle"), interactive=False)
-                            tb_live_transcript = gr.Textbox(label=_("Live Transcript"), interactive=False, max_lines=20)
-                            files_live = gr.Files(label=_("Live Transcript Files"), interactive=False)
-                        with gr.Row():
-                            live_waveform = gr.Audio(
-                                label=_("Live Input Waveform"),
-                                interactive=False,
-                                type="numpy",
-                            )
-
-                        live_inputs = [nb_chunk_seconds, live_dd_file_format, live_cb_timestamp] + live_params
-                        btn_live_start.click(
-                            fn=self._start_live_transcription,
-                            inputs=live_inputs,
-                            outputs=[tb_live_status, tb_live_transcript, files_live, live_waveform],
-                            api_name="_start_live_transcription",
-                        )
-                        btn_live_stop.click(
-                            fn=self._stop_live_transcription,
-                            inputs=None,
-                            outputs=[tb_live_status, tb_live_transcript, files_live, live_waveform],
-                            api_name="_stop_live_transcription",
-                        )
-
-                        live_mic_stream.stream(
-                            fn=self._stream_live_audio,
-                            inputs=[live_mic_stream],
-                            outputs=[tb_live_transcript, tb_live_status, live_waveform],
-                        )
 
                     for cancel_button, indicator in cancel_all_buttons:
                         cancel_button.click(
