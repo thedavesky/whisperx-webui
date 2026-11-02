@@ -7,7 +7,6 @@ en:
   Translate to English?: Translate to English? (Whisper's End-To-End Speech-To-Text
     translation feature)
   Add a timestamp to the end of the filename: Add a timestamp to the end of the filename
-  Offload sub model when finished: Offload model when finished
   Advanced parameters: Advanced parameters
   Enabling this will remove background music: Enabling this will remove background
     music by submodel before transcribing
@@ -67,7 +66,6 @@ ko:
   File Format: 파일 형식
   Translate to English?: 영어로 번역합니까? (위스퍼 모델 자체 번역 기능)
   Add a timestamp to the end of the filename: 파일 이름 끝에 타임스태프 붙이기
-  Offload sub model when finished: 완료 후 모델 오프로드. (VRAM 이 부족할 시 체크하세요.)
   Advanced parameters: 고급 변수
   Enabling this will remove background music: 받아쓰기 이전에 먼저 배경 음악 제거용 서브 모델을 활성화 합니다.
   Enable Background Music Remover Filter: 배경 음악 제거 필터 활성화
@@ -124,7 +122,6 @@ ja:
   File Format: File Format
   Translate to English?: Translate to English?
   Add a timestamp to the end of the filename: Add a timestamp to the end of the filename
-  Offload sub model when finished: Offload model when finished
   Advanced parameters: Advanced parameters
   Enabling this will remove background music: Enabling this will remove background
     music by submodel before transcribing
@@ -184,7 +181,6 @@ es:
   File Format: File Format
   Translate to English?: Translate to English?
   Add a timestamp to the end of the filename: Add a timestamp to the end of the filename
-  Offload sub model when finished: Offload model when finished
   Advanced parameters: Advanced parameters
   Enabling this will remove background music: Enabling this will remove background
     music by submodel before transcribing
@@ -245,7 +241,6 @@ fr:
   Translate to English?: Traduire en anglais ?
   Add a timestamp to the end of the filename: Ajouter un timestamp à la fin du nom
     de fichier
-  Offload sub model when finished: Décharger le sous-modèle une fois terminé
   Advanced parameters: Paramètres avancés
   Enabling this will remove background music: L'activation supprimera la musique de
     fond via un sous-modèle avant la transcription
@@ -308,7 +303,6 @@ de:
   File Format: Dateiformat
   Translate to English?: Ins Englische übersetzen?
   Add a timestamp to the end of the filename: Zeitstempel an den Dateinamen anhängen
-  Offload sub model when finished: Submodell entladen wenn nicht mehr benötigt
   Advanced parameters: Erweiterte Parameter
   Enabling this will remove background music: Aktivierung entfernt Hintergrundmusik
     mithilfe des Submodells vor der Transkription
@@ -371,7 +365,6 @@ nl:
   Translate to English?: Naar Engels vertalen? (Whispers End-To-End Speech-To-Text
     vertaalfunctie)
   Add a timestamp to the end of the filename: Tijdstempel aan het einde van de bestandsnaam toevoegen
-  Offload sub model when finished: Offload model na voltooiing
   Advanced parameters: Geavanceerde Parameters
   Enabling this will remove background music: Hiermee wordt achtergrondmuziek door het submodel verwijderd, voorafgaand aan de transcriptie
   Enable Background Music Remover Filter: Achtergrondmuziek-verwijderingsfilter inschakelen
@@ -429,7 +422,6 @@ zh:
   File Format: 字幕文件格式
   Translate to English?: 将字幕翻译成英语
   Add a timestamp to the end of the filename: 在文件名末尾加入时间戳
-  Offload sub model when finished: 完成后卸载子模型
   Advanced parameters: 高级参数
   Enabling this will remove background music: 启用此功能将会在进行转录前去除背景音乐
   Enable Background Music Remover Filter: 去除背景音乐
@@ -486,7 +478,6 @@ uk:
   File Format: Формат файлу
   Translate to English?: Перекласти на англійську?
   Add a timestamp to the end of the filename: Додати мітку часу до кінця імені файлу
-  Offload sub model when finished: Після завершення вивантажте підмодель
   Advanced parameters: Розширені параметри
   Enabling this will remove background music: Увімкнення цього видалить фонову музику
     за допомогою підмоделі перед транскрипцією
@@ -548,7 +539,6 @@ ru:
   Translate to English?: Перевести на английский?
   Add a timestamp to the end of the filename: Добавить метку времени в конец имени
     файла
-  Offload sub model when finished: Выгрузить подмодель после завершения
   Advanced parameters: Расширенные параметры
   Enabling this will remove background music: Включение этого удалит фоновую музыку
     с помощью подмодели перед транскрипцией
@@ -609,7 +599,6 @@ tr:
   File Format: Dosya Formatı
   Translate to English?: İngilizceye Çevir?
   Add a timestamp to the end of the filename: Dosya adının sonuna zaman damgası ekle
-  Offload sub model when finished: Alt modeli bitirdiğinizde boşaltın
   Advanced parameters: Gelişmiş Parametreler
   Enabling this will remove background music: Bunu etkinleştirmek, arka plan müziğini
     alt model tarafından transkripsiyondan önce kaldıracaktır
@@ -670,7 +659,6 @@ eu:
   File Format: Fitxategi Formatua
   Translate to English?: Itzuli ingelesera?
   Add a timestamp to the end of the filename: Gehitu denbora marka fitxategi amaieran
-  Offload sub model when finished: Deskargatu azpieredua amaitutakoan
   Advanced parameters: Aukera Aurreratuak
   Enabling this will remove background music: Hau aktibatuz, transkribatu aurretik
     atzeko musika ezabatuko zaio azpieredu baten bidez
@@ -745,7 +733,6 @@ he: # Hebrew
   Enabling this will remove background music: הפעלה תסיר מוזיקת רקע באמצעות מודל משנה לפני תמלול
   Enable Background Music Remover Filter: אפשר מסנן הסרת מוזיקת רקע
   Save separated files to output: שמור קבצים מופרדים לפלט
-  Offload sub model when finished: נתק מודל משנה לאחר סיום
   Diarization: דיאריזציה (זיהוי דוברים)
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
   Enable WhisperX Alignment: Enable WhisperX Alignment
@@ -783,7 +770,6 @@ zh-TW:
   File Format: 檔案格式
   Translate to English? (Whisper's End-To-End Speech-To-Text translation feature): 翻譯成英文？(Whisper 的端到端語音轉文字翻譯功能)
   Add a timestamp to the end of the filename: 在檔名結尾加入時間戳記
-  Offload sub model when finished: 完成後卸載模型
   Advanced parameters: 進階參數
   Enabling this will remove background music: 啟用此功能將在轉錄前，透過子模型移除背景音樂
   Enable Background Music Remover Filter: 啟用背景音樂移除濾波器

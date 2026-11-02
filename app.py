@@ -208,13 +208,11 @@ class App:
             is_separate_bgm,  # Stem separation device
             is_separate_bgm,  # Stem separation segment size
             is_separate_bgm,  # Stem separation save files
-            is_separate_bgm,  # Stem separation offload
             is_diarize,  # Diarization device
             is_diarize,  # Diarization compute type
             is_diarize,  # HuggingFace token
             is_diarize and (word_timestamps or enable_whisperx_alignment),  # Word speaker labels
             is_diarize,  # Fallback to nearest speaker
-            is_diarize,  # Diarization offload
             # Word timestamps and WhisperX alignment both run forced alignment,
             # which is where the word confidence scores come from.
             word_timestamps or enable_whisperx_alignment,  # Confidence scores
@@ -292,7 +290,6 @@ class App:
             tb_hf_token,
             cb_assign_word_speakers,
             cb_fill_nearest_speaker,
-            cb_diarization_offload,
         ) = diarization_inputs
         option_state_inputs = [
             whisper_by_field["word_timestamps"],
@@ -309,7 +306,6 @@ class App:
                 tb_hf_token,
                 cb_assign_word_speakers,
                 cb_fill_nearest_speaker,
-                cb_diarization_offload,
             ]
             + [
                 whisper_by_field["show_confidence"],

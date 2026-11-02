@@ -34,8 +34,7 @@ def run_asr_pipeline(
     hparams = TranscriptionPipelineParams(
         whisper=whisper_params,
         bgm_separation=BGMSeparationParams(
-            is_separate_bgm=bgm_separation,
-            enable_offload=True
+            is_separate_bgm=bgm_separation
         ),
         diarization=DiarizationParams(
             is_diarize=diarization

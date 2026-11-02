@@ -68,10 +68,6 @@ class DiarizationParams(BaseParams):
         default=False,
         description="When no overlap exists, tag the nearest diarization speaker"
     )
-    enable_offload: bool = Field(
-        default=True,
-        description="Offload Diarization model after Speaker diarization"
-    )
 
     @classmethod
     def to_gradio_inputs(cls,
@@ -119,10 +115,6 @@ class DiarizationParams(BaseParams):
                 label=_("Fallback to Nearest Speaker When No Overlap"),
                 value=defaults.get("fill_nearest_speaker", cls.__fields__["fill_nearest_speaker"].default),
                 info=_("Use the closest diarization segment when a word has no overlap"),
-            ),
-            gr.Checkbox(
-                label=_("Offload sub model when finished"),
-                value=defaults.get("enable_offload", cls.__fields__["enable_offload"].default),
             )
         ]
 
@@ -143,10 +135,6 @@ class BGMSeparationParams(BaseParams):
     save_file: bool = Field(
         default=False,
         description="Whether to save separated audio files"
-    )
-    enable_offload: bool = Field(
-        default=True,
-        description="Offload UVR model after transcription"
     )
 
     @classmethod
@@ -187,10 +175,6 @@ class BGMSeparationParams(BaseParams):
             gr.Checkbox(
                 label=_("Save separated files to output"),
                 value=defaults.get("save_file", cls.__fields__["save_file"].default),
-            ),
-            gr.Checkbox(
-                label=_("Offload sub model when finished"),
-                value=defaults.get("enable_offload", cls.__fields__["enable_offload"].default),
             )
         ]
 
@@ -305,10 +289,6 @@ class WhisperParams(BaseParams):
         default=False,
         description="Display confidence scores for segments and words",
     )
-    enable_offload: bool = Field(
-        default=True,
-        description="Offload Whisper model after transcription"
-    )
 
     @field_validator('lang')
     def validate_lang(cls, v):
@@ -349,7 +329,6 @@ class WhisperParams(BaseParams):
         "whisperx_vad_onset",
         "whisperx_vad_offset",
         "show_confidence",
-        "enable_offload",
     ]
 
     @classmethod
@@ -501,13 +480,6 @@ class WhisperParams(BaseParams):
                     info=_("Append confidence values to segment and word outputs"),
                 ),
             ]
-
-        inputs += [
-            gr.Checkbox(
-                label=_("Offload sub model when finished"),
-                value=defaults.get("enable_offload", cls.__fields__["enable_offload"].default),
-            )
-        ]
 
         return inputs
 

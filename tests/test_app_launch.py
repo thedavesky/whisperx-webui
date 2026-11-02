@@ -96,7 +96,6 @@ FAKE_DEFAULTS = {
         # Left over from an older release of the WebUI: the WhisperX diarization
         # toggle no longer exists and must not break launching or leak into params.
         "use_whisperx_diarization": True,
-        "enable_offload": False,
         "assign_word_speakers": False,
         "fill_nearest_speaker": False,
     },
@@ -106,7 +105,6 @@ FAKE_DEFAULTS = {
         "uvr_device": "cpu",
         "segment_size": 256,
         "save_file": False,
-        "enable_offload": False,
     },
     "translation": {
         "add_timestamp": False,
@@ -176,6 +174,7 @@ def _build_gradio_stub(real_gr):
         Blocks=DummyBlocks,
         Row=DummyContext,
         Column=DummyContext,
+        Group=DummyContext,
         Accordion=DummyContext,
         TabItem=DummyContext,
         Tabs=DummyContext,
@@ -310,7 +309,6 @@ def test_pipeline_parameters_round_trip(app_with_components):
     assert rebuilt.whisper.model_size == FAKE_DEFAULTS["whisper"]["model_size"]
     assert rebuilt.whisper.batch_size == WhisperParams.model_fields["batch_size"].default
     assert rebuilt.diarization.diarization_device == "cpu"
-    assert rebuilt.diarization.enable_offload is False
     assert rebuilt.bgm_separation.uvr_device == "cpu"
     assert rebuilt.bgm_separation.uvr_model_size == FAKE_DEFAULTS["bgm_separation"]["uvr_model_size"]
 
@@ -326,6 +324,6 @@ def test_diarization_provider_option_is_not_exposed(app_with_components):
     assert "Diarization: HuggingFace Token" in labels
     assert "Diarization: Tag Words With Speaker Labels" in labels
     assert "Diarization: Fallback to Nearest Speaker When No Overlap" in labels
-    assert "Diarization: Offload sub model when finished" in labels
+    assert not any("offload" in label.lower() for label in labels)
 
     assert "use_whisperx_diarization" not in app_instance.pipeline_param_names

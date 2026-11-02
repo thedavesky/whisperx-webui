@@ -204,34 +204,38 @@ class LiveTranscriptionSession:
         if not self._active:
             raise LiveTranscriptionError("Live transcription is not running.")
 
-        self._stop_event.set()
-        if self._reader:
-            self._reader.stop()
+        try:
+            self._stop_event.set()
+            if self._reader:
+                self._reader.stop()
 
-        if self._thread:
-            self._thread.join(timeout=self.chunk_seconds * 2)
+            if self._thread:
+                self._thread.join()
 
-        self._flush_buffer()
-        writer_options = {
-            "highlight_words": bool(self.pipeline_params.whisper.word_timestamps),
-            "include_confidence": bool(getattr(self.pipeline_params.whisper, "show_confidence", False)),
-        }
-        segments = self._get_segments_snapshot()
-        if not segments:
-            segments = [Segment()]
+            self._flush_buffer()
+            writer_options = {
+                "highlight_words": bool(self.pipeline_params.whisper.word_timestamps),
+                "include_confidence": bool(getattr(self.pipeline_params.whisper, "show_confidence", False)),
+            }
+            segments = self._get_segments_snapshot()
+            if not segments:
+                segments = [Segment()]
 
-        content, path = generate_file(
-            output_dir=self.pipeline.output_dir,
-            output_file_name="LiveTranscript",
-            output_format=self.file_format,
-            result=segments,
-            add_timestamp=self.add_timestamp,
-            options=writer_options,
-        )
-        self._final_content = content
-        self._final_file_path = path
-        self._active = False
-        return content, path
+            content, path = generate_file(
+                output_dir=self.pipeline.output_dir,
+                output_file_name="LiveTranscript",
+                output_format=self.file_format,
+                result=segments,
+                add_timestamp=self.add_timestamp,
+                options=writer_options,
+            )
+            self._final_content = content
+            self._final_file_path = path
+            self._active = False
+            return content, path
+        finally:
+            with self.pipeline._job_lock:
+                self.pipeline.offload()
 
     def is_active(self) -> bool:
         return self._active
@@ -317,14 +321,15 @@ class LiveTranscriptionSession:
             return
         params = self.pipeline_params
         try:
-            segments, _ = self.pipeline.run(
-                chunk,
-                NoOpProgress(),
-                self.file_format,
-                False,
-                None,
-                *params.to_list(),
-            )
+            with self.pipeline._job_lock:
+                segments, _ = self.pipeline._run_pipeline(
+                    chunk,
+                    NoOpProgress(),
+                    self.file_format,
+                    False,
+                    None,
+                    *params.to_list(),
+                )
         except Exception as exc:
             logger.exception("Live transcription chunk failed: %s", exc)
             return
@@ -414,32 +419,36 @@ class BrowserLiveTranscriptionSession(LiveTranscriptionSession):
         if not self._active:
             raise LiveTranscriptionError("Live transcription is not running.")
 
-        self._active = False
-        if self._buffer_samples > 0 and self._buffer:
-            chunk = np.concatenate(self._buffer)
-            self._process_chunk(chunk)
-            self._buffer = []
-            self._buffer_samples = 0
+        try:
+            self._active = False
+            if self._buffer_samples > 0 and self._buffer:
+                chunk = np.concatenate(self._buffer)
+                self._process_chunk(chunk)
+                self._buffer = []
+                self._buffer_samples = 0
 
-        writer_options = {
-            "highlight_words": bool(self.pipeline_params.whisper.word_timestamps),
-            "include_confidence": bool(getattr(self.pipeline_params.whisper, "show_confidence", False)),
-        }
-        segments = self._get_segments_snapshot()
-        if not segments:
-            segments = [Segment()]
+            writer_options = {
+                "highlight_words": bool(self.pipeline_params.whisper.word_timestamps),
+                "include_confidence": bool(getattr(self.pipeline_params.whisper, "show_confidence", False)),
+            }
+            segments = self._get_segments_snapshot()
+            if not segments:
+                segments = [Segment()]
 
-        content, path = generate_file(
-            output_dir=self.pipeline.output_dir,
-            output_file_name="LiveTranscript",
-            output_format=self.file_format,
-            result=segments,
-            add_timestamp=self.add_timestamp,
-            options=writer_options,
-        )
-        self._final_content = content
-        self._final_file_path = path
-        return content, path
+            content, path = generate_file(
+                output_dir=self.pipeline.output_dir,
+                output_file_name="LiveTranscript",
+                output_format=self.file_format,
+                result=segments,
+                add_timestamp=self.add_timestamp,
+                options=writer_options,
+            )
+            self._final_content = content
+            self._final_file_path = path
+            return content, path
+        finally:
+            with self.pipeline._job_lock:
+                self.pipeline.offload()
 
     def _resample_audio(self, audio: np.ndarray, source_rate: int) -> np.ndarray:
         if source_rate == self.sample_rate:

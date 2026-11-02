@@ -24,6 +24,7 @@ class DummyPipeline(BaseTranscriptionPipeline):
         self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)
         self.cancel_event = threading.Event()
+        self._job_lock = threading.Lock()
 
     def transcribe(self, audio, progress=gr.Progress(), progress_callback=None, *whisper_params):
         return [
@@ -41,7 +42,7 @@ class DummyPipeline(BaseTranscriptionPipeline):
     def update_model(self, model_size: str, compute_type: str, progress=gr.Progress()):
         return None
 
-    def run(
+    def _run_pipeline(
         self,
         audio,
         progress=gr.Progress(),
@@ -51,6 +52,9 @@ class DummyPipeline(BaseTranscriptionPipeline):
         *pipeline_params,
     ):
         return self.transcribe(audio, progress, progress_callback, *pipeline_params)
+
+    def offload(self):
+        return None
 
 
 def test_subtitle_export_with_confidence(tmp_path):

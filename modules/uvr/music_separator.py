@@ -3,6 +3,7 @@ import numpy as np
 import torchaudio
 import soundfile as sf
 import os
+import threading
 import torch
 import gc
 import gradio as gr
@@ -47,6 +48,7 @@ class MusicSeparator:
             "segment": 256,
             "split": True
         }
+        self._job_lock = threading.Lock()
 
     def update_model(self,
                      model_name: str = "UVR-MDX-NET-Inst_1",
@@ -81,6 +83,26 @@ class MusicSeparator:
                  segment_size: int = 256,
                  save_file: bool = False,
                  progress: gr.Progress = gr.Progress()) -> tuple[np.ndarray, np.ndarray, List]:
+        with self._job_lock:
+            try:
+                return self._separate(
+                    audio=audio,
+                    model_name=model_name,
+                    device=device,
+                    segment_size=segment_size,
+                    save_file=save_file,
+                    progress=progress
+                )
+            finally:
+                self.offload()
+
+    def _separate(self,
+                  audio: Union[str, np.ndarray],
+                  model_name: str,
+                  device: Optional[str] = None,
+                  segment_size: int = 256,
+                  save_file: bool = False,
+                  progress: gr.Progress = gr.Progress()) -> tuple[np.ndarray, np.ndarray, List]:
         """
         Separate the background music from the audio.
 
@@ -157,16 +179,20 @@ class MusicSeparator:
         to display into gr.Audio()"""
         self.cache_parameters(model_size=model_name, segment_size=segment_size)
 
-        for file_path in files:
-            instrumental, vocals, file_paths = self.separate(
-                audio=file_path,
-                model_name=model_name,
-                device=device,
-                segment_size=segment_size,
-                save_file=save_file,
-                progress=progress
-            )
-        return file_paths
+        with self._job_lock:
+            try:
+                for file_path in files:
+                    instrumental, vocals, file_paths = self._separate(
+                        audio=file_path,
+                        model_name=model_name,
+                        device=device,
+                        segment_size=segment_size,
+                        save_file=save_file,
+                        progress=progress
+                    )
+                return file_paths
+            finally:
+                self.offload()
 
     @staticmethod
     def get_device():
@@ -200,7 +226,7 @@ class MusicSeparator:
         cached_params = load_yaml(DEFAULT_PARAMETERS_CONFIG_PATH)
         cached_uvr_params = cached_params["bgm_separation"]
         uvr_params_to_cache = {
-            "model_size": model_size,
+            "uvr_model_size": model_size,
             "segment_size": segment_size
         }
         cached_uvr_params = {**cached_uvr_params, **uvr_params_to_cache}

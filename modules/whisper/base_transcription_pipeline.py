@@ -57,6 +57,7 @@ class BaseTranscriptionPipeline(ABC):
         self.current_compute_type = self.get_compute_type()
         self.whisperx_wrapper: Optional[WhisperXWrapper] = None
         self.cancel_event: threading.Event | None = threading.Event()
+        self._job_lock = threading.Lock()
 
     def set_cancel_event(self, cancel_event: threading.Event | None) -> None:
         """Register an event that signals when ongoing work should stop."""
@@ -66,12 +67,6 @@ class BaseTranscriptionPipeline(ABC):
     def _check_cancelled(self) -> None:
         if self.cancel_event and self.cancel_event.is_set():
             raise gr.Error("Transcription cancelled")
-
-    def _handle_runtime_error_cleanup(self, error: Exception) -> None:
-        message = str(error).lower()
-        if "out of memory" in message:
-            logger.warning("Detected OOM during transcription; offloading models to free memory.")
-            self.offload()
 
     @staticmethod
     def _iter_file_paths(files: Optional[Union[List, Tuple, str]]):
@@ -130,6 +125,30 @@ class BaseTranscriptionPipeline(ABC):
             progress_callback: Optional[Callable] = None,
             *pipeline_params,
             ) -> Tuple[List[Segment], float]:
+        """Run one complete job"""
+
+        with self._job_lock:
+            try:
+                return self._run_pipeline(
+                    audio,
+                    progress,
+                    file_format,
+                    add_timestamp,
+                    progress_callback,
+                    *pipeline_params,
+                )
+            finally:
+                self.offload()
+
+    def _run_pipeline(
+            self,
+            audio: Union[str, BinaryIO, np.ndarray],
+            progress: gr.Progress = gr.Progress(),
+            file_format: str = "SRT",
+            add_timestamp: bool = True,
+            progress_callback: Optional[Callable] = None,
+            *pipeline_params,
+            ) -> Tuple[List[Segment], float]:
         """
         Run transcription with conditional pre-processing and post-processing.
         The diarization will be performed in post-processing, if enabled.
@@ -172,14 +191,15 @@ class BaseTranscriptionPipeline(ABC):
         bgm_params, whisper_params, diarization_params = params.bgm_separation, params.whisper, params.diarization
 
         if bgm_params.is_separate_bgm:
-            music, audio, _ = self.music_separator.separate(
-                audio=audio,
-                model_name=bgm_params.uvr_model_size,
-                device=bgm_params.uvr_device,
-                segment_size=bgm_params.segment_size,
-                save_file=bgm_params.save_file,
-                progress=progress
-            )
+            with self.music_separator._job_lock:
+                music, audio, _ = self.music_separator._separate(
+                    audio=audio,
+                    model_name=bgm_params.uvr_model_size,
+                    device=bgm_params.uvr_device,
+                    segment_size=bgm_params.segment_size,
+                    save_file=bgm_params.save_file,
+                    progress=progress
+                )
 
             if audio.ndim >= 2:
                 audio = audio.mean(axis=1)
@@ -189,8 +209,6 @@ class BaseTranscriptionPipeline(ABC):
                     origin_sample_rate = self.music_separator.audio_info.sample_rate
                 audio = self.resample_audio(audio=audio, original_sample_rate=origin_sample_rate)
 
-            if bgm_params.enable_offload:
-                self.music_separator.offload()
             elapsed_time_bgm_sep = time.time() - start_time
 
         self._check_cancelled()
@@ -259,9 +277,6 @@ class BaseTranscriptionPipeline(ABC):
 
         self._check_cancelled()
 
-        if whisper_params.enable_offload:
-            self.offload()
-
         if diarization_params.is_diarize:
             progress(0.99, desc="Diarizing speakers..")
             result = self._diarize(
@@ -308,8 +323,6 @@ class BaseTranscriptionPipeline(ABC):
             segments=segments,
             diarization_params=diarization_params,
         )
-        if diarization_params.enable_offload:
-            wrapper.offload_diarizer()
         return diarized_result
 
     @property
@@ -431,89 +444,91 @@ class BaseTranscriptionPipeline(ABC):
         result_file_path:
             Output file path to return to gr.Files()
         """
-        try:
-            self._check_cancelled()
-            params = pipeline_params
-            writer_options = {
-                "highlight_words": True if params.whisper.word_timestamps else False,
-                "include_confidence": bool(getattr(params.whisper, "show_confidence", False)),
-            }
-
-            if input_folder_path:
-                files = get_media_files(input_folder_path, include_sub_directory=include_subdirectory)
-
-            files_info = {}
-            for file in self._iter_file_paths(files):
+        with self._job_lock:
+            try:
                 self._check_cancelled()
-                transcribed_segments, time_for_task = self.run(
-                    file,
-                    progress,
-                    file_format,
-                    add_timestamp,
-                    None,
-                    *pipeline_params.to_list(),
-                )
+                params = pipeline_params
+                writer_options = {
+                    "highlight_words": True if params.whisper.word_timestamps else False,
+                    "include_confidence": bool(getattr(params.whisper, "show_confidence", False)),
+                }
 
-                file_name, file_ext = os.path.splitext(os.path.basename(file))
-                if save_same_dir and input_folder_path:
-                    output_dir = os.path.dirname(file)
+                if input_folder_path:
+                    files = get_media_files(input_folder_path, include_sub_directory=include_subdirectory)
+
+                files_info = {}
+                for file in self._iter_file_paths(files):
+                    self._check_cancelled()
+                    transcribed_segments, time_for_task = self._run_pipeline(
+                        file,
+                        progress,
+                        file_format,
+                        add_timestamp,
+                        None,
+                        *pipeline_params.to_list(),
+                    )
+
+                    file_name, file_ext = os.path.splitext(os.path.basename(file))
+                    if save_same_dir and input_folder_path:
+                        output_dir = os.path.dirname(file)
+                        subtitle, file_path = generate_file(
+                            output_dir=output_dir,
+                            output_file_name=file_name,
+                            output_format=file_format,
+                            result=transcribed_segments,
+                            add_timestamp=add_timestamp,
+                            options=writer_options,
+                        )
+
                     subtitle, file_path = generate_file(
-                        output_dir=output_dir,
+                        output_dir=self.output_dir,
                         output_file_name=file_name,
                         output_format=file_format,
                         result=transcribed_segments,
                         add_timestamp=add_timestamp,
                         options=writer_options,
                     )
+                    include_word_details = (
+                        params.whisper.enable_whisperx_alignment and
+                        any(getattr(seg, "words", None) for seg in transcribed_segments)
+                    )
+                    include_word_speakers = include_word_details and params.diarization.assign_word_speakers
+                    preview = self._format_segments_preview(
+                        transcribed_segments,
+                        include_word_timestamps=include_word_details,
+                        include_word_speakers=include_word_speakers,
+                        include_confidence=getattr(params.whisper, "show_confidence", False),
+                    )
+                    subtitle_text = read_file(file_path)
+                    files_info[file_name] = {
+                        "subtitle": subtitle_text,
+                        "preview": preview,
+                        "time_for_task": time_for_task,
+                        "path": file_path
+                    }
 
-                subtitle, file_path = generate_file(
-                    output_dir=self.output_dir,
-                    output_file_name=file_name,
-                    output_format=file_format,
-                    result=transcribed_segments,
-                    add_timestamp=add_timestamp,
-                    options=writer_options,
+                total_time = sum(info["time_for_task"] for info in files_info.values())
+
+                total_result = ''
+                for file_name, info in files_info.items():
+                    total_result += '------------------------------------\n'
+                    total_result += f'{file_name}\n\n'
+                    preview = info.get("preview") or info.get("subtitle")
+                    total_result += f'{preview}\n'
+
+                result_str = (
+                    f"Done in {self.format_time(total_time)}! Subtitle is in the outputs folder.\n\n{total_result}"
                 )
-                include_word_details = (
-                    params.whisper.enable_whisperx_alignment and
-                    any(getattr(seg, "words", None) for seg in transcribed_segments)
-                )
-                include_word_speakers = include_word_details and params.diarization.assign_word_speakers
-                preview = self._format_segments_preview(
-                    transcribed_segments,
-                    include_word_timestamps=include_word_details,
-                    include_word_speakers=include_word_speakers,
-                    include_confidence=getattr(params.whisper, "show_confidence", False),
-                )
-                subtitle_text = read_file(file_path)
-                files_info[file_name] = {
-                    "subtitle": subtitle_text,
-                    "preview": preview,
-                    "time_for_task": time_for_task,
-                    "path": file_path
-                }
+                result_file_path = [info['path'] for info in files_info.values()]
 
-            total_time = sum(info["time_for_task"] for info in files_info.values())
+                return result_str, result_file_path
 
-            total_result = ''
-            for file_name, info in files_info.items():
-                total_result += '------------------------------------\n'
-                total_result += f'{file_name}\n\n'
-                preview = info.get("preview") or info.get("subtitle")
-                total_result += f'{preview}\n'
-
-            result_str = (
-                f"Done in {self.format_time(total_time)}! Subtitle is in the outputs folder.\n\n{total_result}"
-            )
-            result_file_path = [info['path'] for info in files_info.values()]
-
-            return result_str, result_file_path
-
-        except gr.Error:
-            raise
-        except Exception as e:
-            self._handle_runtime_error_cleanup(e)
-            raise RuntimeError(f"Error transcribing file: {e}") from e
+            except gr.Error:
+                raise
+            except Exception as e:
+                raise RuntimeError(f"Error transcribing file: {e}") from e
+            finally:
+                self.offload()
 
     @staticmethod
     def _offset_segments(segments: List[Segment], offset: float) -> List[Segment]:
@@ -612,7 +627,6 @@ class BaseTranscriptionPipeline(ABC):
         except gr.Error:
             raise
         except Exception as e:
-            self._handle_runtime_error_cleanup(e)
             raise RuntimeError(f"Error transcribing mic: {e}") from e
 
     def transcribe_youtube(
@@ -703,7 +717,6 @@ class BaseTranscriptionPipeline(ABC):
         except gr.Error:
             raise
         except Exception as e:
-            self._handle_runtime_error_cleanup(e)
             raise RuntimeError(f"Error transcribing youtube: {e}") from e
 
     def get_compute_type(self):
@@ -723,21 +736,28 @@ class BaseTranscriptionPipeline(ABC):
             return list(ctranslate2.get_supported_compute_types("cpu"))
 
     def offload(self):
-        """Offload the model and free up the memory"""
-        if self.model is not None:
-            del self.model
-            self.model = None
-        if self.whisperx_wrapper is not None:
-            self.whisperx_wrapper.offload_asr()
-            self.whisperx_wrapper.offload_alignment()
-        if self.device == "cuda":
-            torch.cuda.empty_cache()
-            torch.cuda.reset_peak_memory_stats()
-        if self.device == "xpu":
-            torch.xpu.empty_cache()
-            torch.xpu.reset_accumulated_memory_stats()
-            torch.xpu.reset_peak_memory_stats()
-        gc.collect()
+        """Offload every model and free memory"""
+        try:
+            if self.model is not None:
+                del self.model
+                self.model = None
+        finally:
+            try:
+                if self.whisperx_wrapper is not None:
+                    self.whisperx_wrapper.offload_all()
+            finally:
+                try:
+                    with self.music_separator._job_lock:
+                        self.music_separator.offload()
+                finally:
+                    if self.device == "cuda":
+                        torch.cuda.empty_cache()
+                        torch.cuda.reset_peak_memory_stats()
+                    if self.device == "xpu":
+                        torch.xpu.empty_cache()
+                        torch.xpu.reset_accumulated_memory_stats()
+                        torch.xpu.reset_peak_memory_stats()
+                    gc.collect()
 
     @staticmethod
     def format_time(elapsed_time: float) -> str:

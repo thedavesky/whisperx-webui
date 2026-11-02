@@ -66,6 +66,10 @@ class NLLBInference(TranslationBase):
                                  tgt_lang=tgt_lang,
                                  device=self.device)
 
+    def offload(self):
+        self.pipeline = None
+        super().offload()
+
     def is_model_exists(self,
                         model_size: str):
         """Check if model exists or not (Only facebook model)"""

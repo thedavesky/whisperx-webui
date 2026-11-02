@@ -220,14 +220,14 @@ class WhisperXInference(BaseTranscriptionPipeline):
         self.current_alignment_language = None
 
     def offload(self):
-        super().offload()
-        if self.alignment_model is not None:
-            del self.alignment_model
-            self.alignment_model = None
-        self.alignment_metadata = None
-        self.current_alignment_language = None
-        if self.device == "cuda" and torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        try:
+            if self.alignment_model is not None:
+                del self.alignment_model
+                self.alignment_model = None
+            self.alignment_metadata = None
+            self.current_alignment_language = None
+        finally:
+            super().offload()
 
     def _prepare_audio(self, audio: Union[str, BinaryIO, np.ndarray]) -> np.ndarray:
         if isinstance(audio, np.ndarray):
