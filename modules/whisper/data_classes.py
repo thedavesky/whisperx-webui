@@ -233,10 +233,9 @@ class WhisperParams(BaseParams):
         ge=0.0,
         description="Maximum initial timestamp"
     )
-    word_timestamps: bool = Field(default=False, description="Extract word-level timestamps")
-    enable_whisperx_alignment: bool = Field(
+    word_timestamps: bool = Field(
         default=False,
-        description="Use WhisperX forced alignment to refine word-level timestamps",
+        description="Extract word-level timestamps with WhisperX forced alignment"
     )
     prepend_punctuations: Optional[str] = Field(
         default="\"'“¿([{-",
@@ -263,10 +262,6 @@ class WhisperParams(BaseParams):
         description="Number of segments for language detection"
     )
     batch_size: int = Field(default=24, gt=0, description="Batch size for processing")
-    enable_whisperx_alignment: bool = Field(
-        default=False,
-        description="Enable WhisperX to refine word-level timestamps"
-    )
     whisperx_confidence_threshold: float = Field(
         default=0.0,
         ge=0.0,
@@ -322,7 +317,6 @@ class WhisperParams(BaseParams):
         "suppress_blank",
         "suppress_tokens",
         "word_timestamps",
-        "enable_whisperx_alignment",
         "chunk_length",
         "hotwords",
         "batch_size",
@@ -418,15 +412,7 @@ class WhisperParams(BaseParams):
             gr.Checkbox(
                 label="Word Timestamps",
                 value=defaults.get("word_timestamps", cls.__fields__["word_timestamps"].default),
-                info="Extract word-level timestamps"
-            ),
-            gr.Checkbox(
-                label=_("Enable WhisperX Alignment"),
-                value=defaults.get(
-                    "enable_whisperx_alignment",
-                    cls.__fields__["enable_whisperx_alignment"].default,
-                ),
-                info=_("Refine word-level timestamps using WhisperX"),
+                info="Extract word-level timestamps using WhisperX forced alignment"
             ),
         ]
 

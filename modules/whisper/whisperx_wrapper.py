@@ -164,12 +164,13 @@ class WhisperXWrapper:
             words_data = data.get("words") or []
             words: List[Word] = []
             for word in words_data:
+                score = word.get("score")
                 words.append(
                     Word(
                         start=word.get("start"),
                         end=word.get("end"),
                         word=word.get("word") or word.get("text"),
-                        probability=word.get("score") or word.get("probability"),
+                        probability=score if score is not None else word.get("probability"),
                         speaker=word.get("speaker"),
                     )
                 )

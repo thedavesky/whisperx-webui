@@ -1,4 +1,3 @@
-import inspect
 import time
 import tempfile
 from dataclasses import replace
@@ -37,9 +36,6 @@ class WhisperXInference(BaseTranscriptionPipeline):
             uvr_model_dir=uvr_model_dir,
             output_dir=output_dir,
         )
-        self.alignment_model = None
-        self.alignment_metadata = None
-        self.current_alignment_language = None
 
     def transcribe(
         self,
@@ -83,57 +79,58 @@ class WhisperXInference(BaseTranscriptionPipeline):
 
         segments_data = result.get("segments", [])
         detected_language = result.get("language", params.lang)
+        segments_result: List[Segment] = []
 
         if params.word_timestamps:
-            segments_data = self._align_words(
-                segments_data,
-                prepared_audio,
-                detected_language,
-                progress,
+            wrapper = self._ensure_whisperx_wrapper()
+            segments_result = wrapper.align(
+                segments=wrapper._segments_from_dict(segments_data),
+                language=detected_language,
+                audio=prepared_audio,
+                device=self.device,
             )
-
-        segments_result: List[Segment] = []
-        total_duration = result.get("duration") or (
-            segments_data[-1]["end"] if segments_data else 0
-        )
-        for idx, segment in enumerate(segments_data):
-            progress_n = (
-                min(segment.get("end", 0), total_duration) / total_duration
-                if total_duration
-                else 0
+        else:
+            total_duration = result.get("duration") or (
+                segments_data[-1]["end"] if segments_data else 0
             )
-            progress(progress_n, desc="Transcribing..")
-            if progress_callback is not None:
-                progress_callback(progress_n)
-
-            words = None
-            raw_words = segment.get("words")
-            if raw_words:
-                words = [
-                    Word(
-                        start=word.get("start"),
-                        end=word.get("end"),
-                        word=word.get("word"),
-                        probability=word.get("score", word.get("confidence")),
-                    )
-                    for word in raw_words
-                ]
-
-            segments_result.append(
-                Segment(
-                    id=segment.get("id", idx),
-                    seek=segment.get("seek"),
-                    text=segment.get("text"),
-                    start=segment.get("start"),
-                    end=segment.get("end"),
-                    tokens=segment.get("tokens"),
-                    temperature=segment.get("temperature"),
-                    avg_logprob=segment.get("avg_logprob"),
-                    compression_ratio=segment.get("compression_ratio"),
-                    no_speech_prob=segment.get("no_speech_prob"),
-                    words=words,
+            for idx, segment in enumerate(segments_data):
+                progress_n = (
+                    min(segment.get("end", 0), total_duration) / total_duration
+                    if total_duration
+                    else 0
                 )
-            )
+                progress(progress_n, desc="Transcribing..")
+                if progress_callback is not None:
+                    progress_callback(progress_n)
+
+                words = None
+                raw_words = segment.get("words")
+                if raw_words:
+                    words = [
+                        Word(
+                            start=word.get("start"),
+                            end=word.get("end"),
+                            word=word.get("word"),
+                            probability=word.get("score", word.get("confidence")),
+                        )
+                        for word in raw_words
+                    ]
+
+                segments_result.append(
+                    Segment(
+                        id=segment.get("id", idx),
+                        seek=segment.get("seek"),
+                        text=segment.get("text"),
+                        start=segment.get("start"),
+                        end=segment.get("end"),
+                        tokens=segment.get("tokens"),
+                        temperature=segment.get("temperature"),
+                        avg_logprob=segment.get("avg_logprob"),
+                        compression_ratio=segment.get("compression_ratio"),
+                        no_speech_prob=segment.get("no_speech_prob"),
+                        words=words,
+                    )
+                )
 
         elapsed_time = time.time() - start_time
         return segments_result, elapsed_time
@@ -215,19 +212,6 @@ class WhisperXInference(BaseTranscriptionPipeline):
             vad_method="pyannote",
             vad_options=vad_options,
         )
-        self.alignment_model = None
-        self.alignment_metadata = None
-        self.current_alignment_language = None
-
-    def offload(self):
-        try:
-            if self.alignment_model is not None:
-                del self.alignment_model
-                self.alignment_model = None
-            self.alignment_metadata = None
-            self.current_alignment_language = None
-        finally:
-            super().offload()
 
     def _prepare_audio(self, audio: Union[str, BinaryIO, np.ndarray]) -> np.ndarray:
         if isinstance(audio, np.ndarray):
@@ -280,53 +264,3 @@ class WhisperXInference(BaseTranscriptionPipeline):
         except TypeError as error:
             logger.error("Failed to update WhisperX transcription options: %s", error)
             raise
-
-    def _align_words(
-        self,
-        segments: List[dict],
-        audio: np.ndarray,
-        language: Optional[str],
-        progress: gr.Progress,
-    ) -> List[dict]:
-        language_code = language
-        if language_code is None and segments:
-            language_code = segments[0].get("language")
-        if language_code is None:
-            language_code = "en"
-            logger.warning(
-                "Alignment language could not be determined. Falling back to English aligner."
-            )
-
-        if (
-            language_code != self.current_alignment_language
-            or self.alignment_model is None
-        ):
-            progress(0, desc="Loading alignment model..")
-            align_signature = inspect.signature(whisperx.load_align_model).parameters
-            align_kwargs = {
-                "language_code": language_code,
-                "device": self.device,
-            }
-
-            if "model_dir" in align_signature:
-                align_kwargs["model_dir"] = self.model_dir
-            elif "download_root" in align_signature:
-                align_kwargs["download_root"] = self.model_dir
-
-            self.alignment_model, self.alignment_metadata = whisperx.load_align_model(
-                **align_kwargs
-            )
-            self.current_alignment_language = language_code
-
-        if not segments:
-            return segments
-
-        aligned = whisperx.align(
-            segments,
-            self.alignment_model,
-            self.alignment_metadata,
-            audio,
-            self.device,
-            return_char_alignments=False,
-        )
-        return aligned.get("segments", segments)

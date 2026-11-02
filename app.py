@@ -194,13 +194,11 @@ class App:
     @staticmethod
     def _pipeline_option_states(
         word_timestamps,
-        enable_whisperx_alignment,
         is_diarize,
         is_separate_bgm,
         prefix,
     ) -> tuple:
         word_timestamps = bool(word_timestamps)
-        enable_whisperx_alignment = bool(enable_whisperx_alignment)
         is_diarize = bool(is_diarize)
         is_separate_bgm = bool(is_separate_bgm)
         return (
@@ -211,11 +209,11 @@ class App:
             is_diarize,  # Diarization device
             is_diarize,  # Diarization compute type
             is_diarize,  # HuggingFace token
-            is_diarize and (word_timestamps or enable_whisperx_alignment),  # Word speaker labels
+            is_diarize and word_timestamps,  # Word speaker labels
             is_diarize,  # Fallback to nearest speaker
-            # Word timestamps and WhisperX alignment both run forced alignment,
+            # Word timestamps come from WhisperX forced alignment,
             # which is where the word confidence scores come from.
-            word_timestamps or enable_whisperx_alignment,  # Confidence scores
+            word_timestamps,  # Confidence scores
             not prefix,  # Hotwords have no effect while a prefix is set
         )
 
@@ -277,7 +275,7 @@ class App:
 
         whisper_by_field = dict(zip(WhisperParams.GRADIO_FIELDS[3:], whisper_inputs))
         with word_timing_accordion:
-            for field_name in ("word_timestamps", "enable_whisperx_alignment", "show_confidence"):
+            for field_name in ("word_timestamps", "show_confidence"):
                 component = whisper_by_field[field_name]
                 component.unrender()
                 component.render()
@@ -293,7 +291,6 @@ class App:
         ) = diarization_inputs
         option_state_inputs = [
             whisper_by_field["word_timestamps"],
-            whisper_by_field["enable_whisperx_alignment"],
             cb_diarize,
             cb_separate_bgm,
             whisper_by_field["prefix"],
@@ -321,7 +318,6 @@ class App:
 
         initial_states = self._pipeline_option_states(
             whisper_params.get("word_timestamps", False),
-            whisper_params.get("enable_whisperx_alignment", False),
             diarization_params.get("is_diarize", False),
             uvr_params.get("is_separate_bgm", False),
             whisper_params.get("prefix") or "",

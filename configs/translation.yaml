@@ -24,8 +24,7 @@ en:
   HuggingFace Token: HuggingFace Token
   Diarization: Diarization
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
-  Enable WhisperX Alignment: Enable WhisperX Alignment
-  Refine word-level timestamps using WhisperX: Refine word-level timestamps using WhisperX
+  Word Timestamps: Word Timestamps
   WhisperX Minimum Word Confidence: WhisperX Minimum Word Confidence
   Discard aligned words below this WhisperX confidence score: Discard aligned words below this WhisperX confidence score
   Tag Words With Speaker Labels: Tag Words With Speaker Labels
@@ -81,8 +80,7 @@ ko:
   HuggingFace Token: 허깅페이스 토큰
   Diarization: 화자 구분
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
-  Enable WhisperX Alignment: Enable WhisperX Alignment
-  Refine word-level timestamps using WhisperX: Refine word-level timestamps using WhisperX
+  Word Timestamps: Word Timestamps
   WhisperX Minimum Word Confidence: WhisperX Minimum Word Confidence
   Discard aligned words below this WhisperX confidence score: Discard aligned words below this WhisperX confidence score
   Tag Words With Speaker Labels: Tag Words With Speaker Labels
@@ -139,8 +137,7 @@ ja:
   HuggingFace Token: HuggingFace Token
   Diarization: Diarization
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
-  Enable WhisperX Alignment: Enable WhisperX Alignment
-  Refine word-level timestamps using WhisperX: Refine word-level timestamps using WhisperX
+  Word Timestamps: Word Timestamps
   WhisperX Minimum Word Confidence: WhisperX Minimum Word Confidence
   Discard aligned words below this WhisperX confidence score: Discard aligned words below this WhisperX confidence score
   Tag Words With Speaker Labels: Tag Words With Speaker Labels
@@ -198,8 +195,7 @@ es:
   HuggingFace Token: HuggingFace Token
   Diarization: Diarization
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
-  Enable WhisperX Alignment: Enable WhisperX Alignment
-  Refine word-level timestamps using WhisperX: Refine word-level timestamps using WhisperX
+  Word Timestamps: Word Timestamps
   WhisperX Minimum Word Confidence: WhisperX Minimum Word Confidence
   Discard aligned words below this WhisperX confidence score: Discard aligned words below this WhisperX confidence score
   Tag Words With Speaker Labels: Tag Words With Speaker Labels
@@ -260,8 +256,7 @@ fr:
   HuggingFace Token: Token HuggingFace
   Diarization: Diarisation
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
-  Enable WhisperX Alignment: Enable WhisperX Alignment
-  Refine word-level timestamps using WhisperX: Refine word-level timestamps using WhisperX
+  Word Timestamps: Word Timestamps
   WhisperX Minimum Word Confidence: WhisperX Minimum Word Confidence
   Discard aligned words below this WhisperX confidence score: Discard aligned words below this WhisperX confidence score
   Tag Words With Speaker Labels: Tag Words With Speaker Labels
@@ -321,8 +316,7 @@ de:
   HuggingFace Token: HuggingFace-Token
   Diarization: Diarisierung
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
-  Enable WhisperX Alignment: Enable WhisperX Alignment
-  Refine word-level timestamps using WhisperX: Refine word-level timestamps using WhisperX
+  Word Timestamps: Word Timestamps
   WhisperX Minimum Word Confidence: WhisperX Minimum Word Confidence
   Discard aligned words below this WhisperX confidence score: Discard aligned words below this WhisperX confidence score
   Tag Words With Speaker Labels: Tag Words With Speaker Labels
@@ -381,8 +375,7 @@ nl:
   HuggingFace Token: HuggingFace-token
   Diarization: Diarisatie
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
-  Enable WhisperX Alignment: Enable WhisperX Alignment
-  Refine word-level timestamps using WhisperX: Refine word-level timestamps using WhisperX
+  Word Timestamps: Word Timestamps
   WhisperX Minimum Word Confidence: WhisperX Minimum Word Confidence
   Discard aligned words below this WhisperX confidence score: Discard aligned words below this WhisperX confidence score
   Tag Words With Speaker Labels: Tag Words With Speaker Labels
@@ -437,8 +430,7 @@ zh:
   HuggingFace Token: HuggingFace令牌
   Diarization: 说话人分离设置
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
-  Enable WhisperX Alignment: Enable WhisperX Alignment
-  Refine word-level timestamps using WhisperX: Refine word-level timestamps using WhisperX
+  Word Timestamps: Word Timestamps
   WhisperX Minimum Word Confidence: WhisperX Minimum Word Confidence
   Discard aligned words below this WhisperX confidence score: Discard aligned words below this WhisperX confidence score
   Tag Words With Speaker Labels: Tag Words With Speaker Labels
@@ -495,8 +487,7 @@ uk:
   HuggingFace Token: Токен HuggingFace
   Diarization: Діаризація
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
-  Enable WhisperX Alignment: Enable WhisperX Alignment
-  Refine word-level timestamps using WhisperX: Refine word-level timestamps using WhisperX
+  Word Timestamps: Word Timestamps
   WhisperX Minimum Word Confidence: WhisperX Minimum Word Confidence
   Discard aligned words below this WhisperX confidence score: Discard aligned words below this WhisperX confidence score
   Tag Words With Speaker Labels: Tag Words With Speaker Labels
@@ -556,8 +547,7 @@ ru:
   HuggingFace Token: Токен HuggingFace
   Diarization: Диаризация
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
-  Enable WhisperX Alignment: Enable WhisperX Alignment
-  Refine word-level timestamps using WhisperX: Refine word-level timestamps using WhisperX
+  Word Timestamps: Word Timestamps
   WhisperX Minimum Word Confidence: WhisperX Minimum Word Confidence
   Discard aligned words below this WhisperX confidence score: Discard aligned words below this WhisperX confidence score
   Tag Words With Speaker Labels: Tag Words With Speaker Labels
@@ -616,8 +606,7 @@ tr:
   HuggingFace Token: HuggingFace Anahtarı
   Diarization: Konuşmacı Ayrımı
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
-  Enable WhisperX Alignment: Enable WhisperX Alignment
-  Refine word-level timestamps using WhisperX: Refine word-level timestamps using WhisperX
+  Word Timestamps: Word Timestamps
   WhisperX Minimum Word Confidence: WhisperX Minimum Word Confidence
   Discard aligned words below this WhisperX confidence score: Discard aligned words below this WhisperX confidence score
   Tag Words With Speaker Labels: Tag Words With Speaker Labels
@@ -676,8 +665,7 @@ eu:
   HuggingFace Token: HuggingFace Tokena
   Diarization: Diarizazioa
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
-  Enable WhisperX Alignment: Enable WhisperX Alignment
-  Refine word-level timestamps using WhisperX: Refine word-level timestamps using WhisperX
+  Word Timestamps: Word Timestamps
   WhisperX Minimum Word Confidence: WhisperX Minimum Word Confidence
   Discard aligned words below this WhisperX confidence score: Discard aligned words below this WhisperX confidence score
   Tag Words With Speaker Labels: Tag Words With Speaker Labels
@@ -735,8 +723,7 @@ he: # Hebrew
   Save separated files to output: שמור קבצים מופרדים לפלט
   Diarization: דיאריזציה (זיהוי דוברים)
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
-  Enable WhisperX Alignment: Enable WhisperX Alignment
-  Refine word-level timestamps using WhisperX: Refine word-level timestamps using WhisperX
+  Word Timestamps: Word Timestamps
   WhisperX Minimum Word Confidence: WhisperX Minimum Word Confidence
   Discard aligned words below this WhisperX confidence score: Discard aligned words below this WhisperX confidence score
   Tag Words With Speaker Labels: Tag Words With Speaker Labels
@@ -784,8 +771,7 @@ zh-TW:
   HuggingFace Token: HuggingFace 權杖（Token）
   Diarization: 語者分離
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
-  Enable WhisperX Alignment: Enable WhisperX Alignment
-  Refine word-level timestamps using WhisperX: Refine word-level timestamps using WhisperX
+  Word Timestamps: Word Timestamps
   WhisperX Minimum Word Confidence: WhisperX Minimum Word Confidence
   Discard aligned words below this WhisperX confidence score: Discard aligned words below this WhisperX confidence score
   Tag Words With Speaker Labels: Tag Words With Speaker Labels

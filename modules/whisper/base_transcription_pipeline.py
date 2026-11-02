@@ -241,8 +241,7 @@ class BaseTranscriptionPipeline(ABC):
         origin_audio = deepcopy(audio)
         # ====================================
 
-        use_whisperx_alignment = getattr(whisper_params, "enable_whisperx_alignment", False)
-        use_whisperx = use_whisperx_alignment
+        use_whisperx = whisper_params.word_timestamps
         whisperx_language = None
 
         self._check_cancelled()
@@ -266,7 +265,7 @@ class BaseTranscriptionPipeline(ABC):
 
         self._check_cancelled()
 
-        if use_whisperx_alignment:
+        if use_whisperx:
             progress(0.95, desc="Aligning with WhisperX..")
             result = self.whisperx_wrapper.align(
                 segments=result,
@@ -489,7 +488,7 @@ class BaseTranscriptionPipeline(ABC):
                         options=writer_options,
                     )
                     include_word_details = (
-                        params.whisper.enable_whisperx_alignment and
+                        params.whisper.word_timestamps and
                         any(getattr(seg, "words", None) for seg in transcribed_segments)
                     )
                     include_word_speakers = include_word_details and params.diarization.assign_word_speakers
@@ -608,7 +607,7 @@ class BaseTranscriptionPipeline(ABC):
             )
 
             include_word_details = (
-                params.whisper.enable_whisperx_alignment and
+                params.whisper.word_timestamps and
                 any(getattr(seg, "words", None) for seg in transcribed_segments)
             )
             include_word_speakers = include_word_details and params.diarization.assign_word_speakers
@@ -693,7 +692,7 @@ class BaseTranscriptionPipeline(ABC):
             )
 
             include_word_details = (
-                params.whisper.enable_whisperx_alignment and
+                params.whisper.word_timestamps and
                 any(getattr(seg, "words", None) for seg in transcribed_segments)
             )
             include_word_speakers = include_word_details and params.diarization.assign_word_speakers
