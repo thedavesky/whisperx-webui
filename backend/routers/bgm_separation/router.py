@@ -16,7 +16,6 @@ from modules.uvr.music_separator import MusicSeparator
 from modules.utils.paths import BACKEND_CACHE_DIR
 from backend.common.audio import read_audio
 from backend.common.models import QueueResponse
-from backend.common.config_loader import load_server_config
 from backend.common.compresser import get_file_hash, find_file_by_hash
 from backend.db.task.models import TaskStatus, TaskType, ResultType
 from backend.db.task.dao import add_task_to_db, update_task_status_in_db
@@ -28,15 +27,9 @@ bgm_separation_router = APIRouter(prefix="/bgm-separation", tags=["BGM Separatio
 
 @functools.lru_cache
 def get_bgm_separation_inferencer() -> 'MusicSeparator':
-    config = load_server_config()["bgm_separation"]
-    inferencer = MusicSeparator(
+    return MusicSeparator(
         output_dir=os.path.join(BACKEND_CACHE_DIR, "UVR")
     )
-    inferencer.update_model(
-        model_name=config["model_size"],
-        device=config["device"]
-    )
-    return inferencer
 
 
 def run_bgm_separation(

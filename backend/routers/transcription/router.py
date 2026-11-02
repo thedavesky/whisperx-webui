@@ -15,7 +15,6 @@ from modules.utils.paths import BACKEND_CACHE_DIR
 from modules.whisper.whisperx_inference import WhisperXInference
 from backend.common.audio import read_audio
 from backend.common.models import QueueResponse
-from backend.common.config_loader import load_server_config
 from backend.db.task.dao import (
     add_task_to_db,
     get_db_session,
@@ -42,15 +41,9 @@ def create_progress_callback(identifier: str):
 
 @functools.lru_cache
 def get_pipeline() -> 'WhisperXInference':
-    config = load_server_config()["whisper"]
-    inferencer = WhisperXInference(
+    return WhisperXInference(
         output_dir=BACKEND_CACHE_DIR
     )
-    inferencer.update_model(
-        model_size=config["model_size"],
-        compute_type=config["compute_type"]
-    )
-    return inferencer
 
 
 def run_transcription(

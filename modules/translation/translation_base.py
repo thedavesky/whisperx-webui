@@ -145,14 +145,14 @@ class TranslationBase(ABC):
         if self.model is not None:
             del self.model
             self.model = None
-        if self.device == "cuda":
-            torch.cuda.empty_cache()
-            torch.cuda.reset_peak_memory_stats()
-        if self.device == "xpu":
-            torch.xpu.empty_cache()
-            torch.xpu.reset_accumulated_memory_stats()
-            torch.xpu.reset_peak_memory_stats()
+
         gc.collect()
+
+        if torch.cuda.is_initialized():
+            torch.cuda.empty_cache()
+
+        if hasattr(torch, "xpu") and torch.xpu.is_initialized():
+            torch.xpu.empty_cache()
 
     @staticmethod
     def remove_input_files(file_paths: List[str]):

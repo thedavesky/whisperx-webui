@@ -461,14 +461,18 @@ class WhisperXWrapper:
 
         return segments_result
 
+    @staticmethod
+    def _free_memory() -> None:
+        gc.collect()
+
+        if torch.cuda.is_initialized():
+            torch.cuda.empty_cache()
+
     def offload_asr(self) -> None:
         if self._model is not None:
             del self._model
             self._model = None
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                torch.cuda.reset_peak_memory_stats()
-            gc.collect()
+            self._free_memory()
 
     def offload_alignment(self) -> None:
         if self._align_model is not None:
@@ -476,10 +480,7 @@ class WhisperXWrapper:
             self._align_model = None
             self._align_metadata = None
             self._align_language = None
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                torch.cuda.reset_peak_memory_stats()
-            gc.collect()
+            self._free_memory()
 
     def offload_diarizer(self) -> None:
         if self._diarization_pipeline is not None:
@@ -488,10 +489,7 @@ class WhisperXWrapper:
             self._diarization_device = None
             self._diarization_token = None
             self._diarization_compute_type = None
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                torch.cuda.reset_peak_memory_stats()
-            gc.collect()
+            self._free_memory()
 
     def offload_all(self) -> None:
         self.offload_asr()

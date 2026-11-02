@@ -14,7 +14,7 @@ import gc
 from copy import deepcopy
 import time
 
-from modules.uvr.music_separator import MusicSeparator
+from modules.uvr.music_separator import MusicSeparatorEngine
 from modules.utils.paths import (WHISPER_MODELS_DIR, DIARIZATION_MODELS_DIR, OUTPUT_DIR, DEFAULT_PARAMETERS_CONFIG_PATH,
                                  UVR_MODELS_DIR)
 from modules.utils.constants import *
@@ -43,7 +43,7 @@ class BaseTranscriptionPipeline(ABC):
         os.makedirs(self.output_dir, exist_ok=True)
         os.makedirs(self.model_dir, exist_ok=True)
         os.makedirs(self.diarization_model_dir, exist_ok=True)
-        self.music_separator = MusicSeparator(
+        self.music_separator = MusicSeparatorEngine(
             model_dir=uvr_model_dir,
             output_dir=os.path.join(output_dir, "UVR")
         )
@@ -749,14 +749,12 @@ class BaseTranscriptionPipeline(ABC):
                     with self.music_separator._job_lock:
                         self.music_separator.offload()
                 finally:
-                    if self.device == "cuda":
-                        torch.cuda.empty_cache()
-                        torch.cuda.reset_peak_memory_stats()
-                    if self.device == "xpu":
-                        torch.xpu.empty_cache()
-                        torch.xpu.reset_accumulated_memory_stats()
-                        torch.xpu.reset_peak_memory_stats()
                     gc.collect()
+
+                    if torch.cuda.is_initialized():
+                        torch.cuda.empty_cache()
+                    if hasattr(torch, "xpu") and torch.xpu.is_initialized():
+                        torch.xpu.empty_cache()
 
     @staticmethod
     def format_time(elapsed_time: float) -> str:

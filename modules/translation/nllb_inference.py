@@ -1,12 +1,13 @@
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 import gradio as gr
 import os
+import threading
 
+from modules.utils.inference_process import InferenceProcess, WorkerError, probe_metadata
 from modules.utils.paths import TRANSLATION_OUTPUT_DIR, NLLB_MODELS_DIR
 from modules.translation.translation_base import TranslationBase
 
 
-class NLLBInference(TranslationBase):
+class NLLBInferenceEngine(TranslationBase):
     def __init__(self,
                  model_dir: str = NLLB_MODELS_DIR,
                  output_dir: str = TRANSLATION_OUTPUT_DIR
@@ -47,6 +48,8 @@ class NLLBInference(TranslationBase):
         src_lang = validate_language(src_lang)
         tgt_lang = validate_language(tgt_lang)
 
+        from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
+
         if model_size != self.current_model_size or self.model is None:
             print("\nInitializing NLLB Model..\n")
             progress(0, desc="Initializing NLLB Model..")
@@ -68,6 +71,7 @@ class NLLBInference(TranslationBase):
 
     def offload(self):
         self.pipeline = None
+        self.tokenizer = None
         super().offload()
 
     def is_model_exists(self,
@@ -84,6 +88,62 @@ class NLLBInference(TranslationBase):
                     os.listdir(os.path.join(self.model_dir, model_dir_name)):
                 return True
         return False
+
+
+class NLLBInference:
+    def __init__(self,
+                 model_dir: str = NLLB_MODELS_DIR,
+                 output_dir: str = TRANSLATION_OUTPUT_DIR
+                 ):
+        self.model_dir = model_dir
+        self.output_dir = output_dir
+        os.makedirs(self.model_dir, exist_ok=True)
+        os.makedirs(self.output_dir, exist_ok=True)
+        self.available_models = ["facebook/nllb-200-3.3B", "facebook/nllb-200-1.3B", "facebook/nllb-200-distilled-600M"]
+        self.available_source_langs = list(NLLB_AVAILABLE_LANGS.keys())
+        self.available_target_langs = list(NLLB_AVAILABLE_LANGS.keys())
+        self._process = InferenceProcess()
+        self._job_lock = threading.Lock()
+        self._device = None
+
+    @property
+    def device(self) -> str:
+        if self._device is None:
+            self._device = probe_metadata()["device"]
+        return self._device
+
+    def translate_file(self,
+                       fileobjs: list,
+                       model_size: str,
+                       src_lang: str,
+                       tgt_lang: str,
+                       max_length: int = 200,
+                       add_timestamp: bool = True,
+                       progress=gr.Progress()) -> list:
+        if fileobjs and isinstance(fileobjs[0], gr.utils.NamedString):
+            fileobjs = [file.name for file in fileobjs]
+
+        with self._job_lock:
+            try:
+                return self._process.request(
+                    {
+                        "op": "translate",
+                        "dirs": {"model_dir": self.model_dir, "output_dir": self.output_dir},
+                        "args": {
+                            "fileobjs": fileobjs,
+                            "model_size": model_size,
+                            "src_lang": src_lang,
+                            "tgt_lang": tgt_lang,
+                            "max_length": max_length,
+                            "add_timestamp": add_timestamp,
+                        },
+                    },
+                    on_progress=lambda value, desc: progress(value, desc=desc),
+                )
+            except WorkerError as exc:
+                raise RuntimeError(f"Error translating file: {exc}") from exc
+            finally:
+                self._process.offload()
 
 
 NLLB_AVAILABLE_LANGS = {

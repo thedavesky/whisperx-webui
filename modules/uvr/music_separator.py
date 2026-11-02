@@ -13,9 +13,12 @@ import traceback
 from modules.utils.paths import DEFAULT_PARAMETERS_CONFIG_PATH, UVR_MODELS_DIR, UVR_OUTPUT_DIR
 from modules.utils.files_manager import load_yaml, save_yaml, is_video
 from modules.utils.audio_loader import load_audio
+from modules.utils.inference_process import InferenceProcess, WorkerError, probe_metadata
 from modules.utils.logger import get_logger
 
 logger = get_logger()
+
+UVR_AVAILABLE_MODELS = ["UVR-MDX-NET-Inst_HQ_4", "UVR-MDX-NET-Inst_3"]
 
 try:
     from uvr.models import MDX, Demucs, VrNetwork, MDXC
@@ -27,7 +30,7 @@ except Exception as e:
     )
 
 
-class MusicSeparator:
+class MusicSeparatorEngine:
     def __init__(self,
                  model_dir: Optional[str] = UVR_MODELS_DIR,
                  output_dir: Optional[str] = UVR_OUTPUT_DIR):
@@ -41,7 +44,7 @@ class MusicSeparator:
         os.makedirs(instrumental_output_dir, exist_ok=True)
         os.makedirs(vocals_output_dir, exist_ok=True)
         self.audio_info = None
-        self.available_models = ["UVR-MDX-NET-Inst_HQ_4", "UVR-MDX-NET-Inst_3"]
+        self.available_models = UVR_AVAILABLE_MODELS
         self.default_model = self.available_models[0]
         self.current_model_size = self.default_model
         self.model_config = {
@@ -75,26 +78,6 @@ class MusicSeparator:
                          device=self.device,
                          logger=None,
                          model_dir=self.model_dir)
-
-    def separate(self,
-                 audio: Union[str, np.ndarray],
-                 model_name: str,
-                 device: Optional[str] = None,
-                 segment_size: int = 256,
-                 save_file: bool = False,
-                 progress: gr.Progress = gr.Progress()) -> tuple[np.ndarray, np.ndarray, List]:
-        with self._job_lock:
-            try:
-                return self._separate(
-                    audio=audio,
-                    model_name=model_name,
-                    device=device,
-                    segment_size=segment_size,
-                    save_file=save_file,
-                    progress=progress
-                )
-            finally:
-                self.offload()
 
     def _separate(self,
                   audio: Union[str, np.ndarray],
@@ -168,32 +151,6 @@ class MusicSeparator:
 
         return instrumental, vocals, file_paths
 
-    def separate_files(self,
-                       files: List,
-                       model_name: str,
-                       device: Optional[str] = None,
-                       segment_size: int = 256,
-                       save_file: bool = True,
-                       progress: gr.Progress = gr.Progress()) -> List[str]:
-        """Separate the background music from the audio files. Returns only last Instrumental and vocals file paths
-        to display into gr.Audio()"""
-        self.cache_parameters(model_size=model_name, segment_size=segment_size)
-
-        with self._job_lock:
-            try:
-                for file_path in files:
-                    instrumental, vocals, file_paths = self._separate(
-                        audio=file_path,
-                        model_name=model_name,
-                        device=device,
-                        segment_size=segment_size,
-                        save_file=save_file,
-                        progress=progress
-                    )
-                return file_paths
-            finally:
-                self.offload()
-
     @staticmethod
     def get_device():
         if torch.cuda.is_available():
@@ -210,14 +167,13 @@ class MusicSeparator:
         if self.model is not None:
             del self.model
             self.model = None
-        if self.device == "cuda":
-            torch.cuda.empty_cache()
-            torch.cuda.reset_peak_memory_stats()
-        if self.device == "xpu":
-            torch.xpu.empty_cache()
-            torch.xpu.reset_accumulated_memory_stats()
-            torch.xpu.reset_peak_memory_stats()
+
         gc.collect()
+
+        if torch.cuda.is_initialized():
+            torch.cuda.empty_cache()
+        if hasattr(torch, "xpu") and torch.xpu.is_initialized():
+            torch.xpu.empty_cache()
         self.audio_info = None
 
     @staticmethod
@@ -232,3 +188,103 @@ class MusicSeparator:
         cached_uvr_params = {**cached_uvr_params, **uvr_params_to_cache}
         cached_params["bgm_separation"] = cached_uvr_params
         save_yaml(cached_params, DEFAULT_PARAMETERS_CONFIG_PATH)
+
+
+class MusicSeparator:
+    """Parent-side client. Separation runs inside a disposable worker process
+    so that offload() can return the model's RAM and VRAM to the OS."""
+
+    def __init__(self,
+                 model_dir: Optional[str] = UVR_MODELS_DIR,
+                 output_dir: Optional[str] = UVR_OUTPUT_DIR,
+                 owner=None):
+        self.model_dir = model_dir
+        self.output_dir = output_dir
+        self.available_models = UVR_AVAILABLE_MODELS
+        self.available_devices = ["cpu", "cuda", "xpu", "mps"]
+        self._owner = owner
+        self._own_process = None if owner is not None else InferenceProcess()
+        self._own_lock = threading.Lock()
+        self._meta = None
+
+    @property
+    def device(self) -> str:
+        return self._probe()["uvr_device"]
+
+    @property
+    def _job_lock(self) -> threading.Lock:
+        return self._owner._job_lock if self._owner is not None else self._own_lock
+
+    def _probe(self) -> Dict:
+        if self._meta is None:
+            self._meta = self._owner._probe() if self._owner is not None else probe_metadata()
+        return self._meta
+
+    def offload(self):
+        """Stop the worker(s); the OS reclaims the model memory when they exit."""
+        if self._owner is not None:
+            self._owner.offload()
+        else:
+            self._own_process.offload()
+
+    def _run(self, message: Dict, progress) -> object:
+        process = self._owner._process if self._owner is not None else self._own_process
+        try:
+            return process.request(
+                message,
+                on_progress=lambda value, desc: progress(value, desc=desc),
+            )
+        except WorkerError as exc:
+            raise RuntimeError(f"Error separating audio: {exc}") from exc
+
+    def separate(self,
+                 audio: Union[str, np.ndarray],
+                 model_name: str,
+                 device: Optional[str] = None,
+                 segment_size: int = 256,
+                 save_file: bool = False,
+                 progress: gr.Progress = gr.Progress()) -> tuple[np.ndarray, np.ndarray, List]:
+        with self._job_lock:
+            try:
+                return self._run(
+                    {
+                        "op": "separate",
+                        "dirs": {"model_dir": self.model_dir, "output_dir": self.output_dir},
+                        "audio": audio,
+                        "model_name": model_name,
+                        "device": device,
+                        "segment_size": segment_size,
+                        "save_file": save_file,
+                    },
+                    progress,
+                )
+            finally:
+                self.offload()
+
+    def separate_files(self,
+                       files: List,
+                       model_name: str,
+                       device: Optional[str] = None,
+                       segment_size: int = 256,
+                       save_file: bool = True,
+                       progress: gr.Progress = gr.Progress()) -> List[str]:
+        """Separate the background music from the audio files. Returns only last Instrumental and vocals file paths
+        to display into gr.Audio()"""
+        MusicSeparatorEngine.cache_parameters(model_size=model_name, segment_size=segment_size)
+
+        with self._job_lock:
+            try:
+                return self._run(
+                    {
+                        "op": "separate_batch",
+                        "dirs": {"model_dir": self.model_dir, "output_dir": self.output_dir},
+                        "files": list(files),
+                        "model_name": model_name,
+                        "device": device,
+                        "segment_size": segment_size,
+                        "save_file": save_file,
+                    },
+                    progress,
+                )
+            finally:
+                self.offload()
