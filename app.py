@@ -94,9 +94,25 @@ class App:
             return False
 
     @staticmethod
-    @staticmethod
     def _pipeline_from_values(*pipeline_values):
-        return TranscriptionPipelineParams.from_list(list(pipeline_values))
+        values = list(pipeline_values)
+        whisper_split = len(WhisperParams.GRADIO_FIELDS)
+        expected_count = (
+            whisper_split
+            + len(DiarizationParams.model_fields)
+            + len(BGMSeparationParams.model_fields)
+        )
+        if len(values) != expected_count:
+            raise ValueError(
+                f"Expected {expected_count} pipeline parameters, but received {len(values)}. "
+                "The rendered UI options and TranscriptionPipelineParams are out of sync."
+            )
+        whisper_params = WhisperParams(
+            **dict(zip(WhisperParams.GRADIO_FIELDS, values[:whisper_split]))
+        )
+        return TranscriptionPipelineParams.from_list(
+            whisper_params.to_list() + values[whisper_split:]
+        )
 
     @staticmethod
     def _prefix_labels(components: list[gr.components.Component], prefix: str) -> None:
@@ -170,121 +186,161 @@ class App:
                     logger.warning("Failed to build theme '%s', using raw value", theme_arg, exc_info=True)
         return theme_arg
 
+    @staticmethod
+    def _folder_option_updates(input_folder_path):
+        enabled = bool((input_folder_path or "").strip())
+        return gr.update(interactive=enabled), gr.update(interactive=enabled)
+
+    @staticmethod
+    def _pipeline_option_states(
+        word_timestamps,
+        enable_whisperx_alignment,
+        is_diarize,
+        is_separate_bgm,
+        prefix,
+    ) -> tuple:
+        word_timestamps = bool(word_timestamps)
+        enable_whisperx_alignment = bool(enable_whisperx_alignment)
+        is_diarize = bool(is_diarize)
+        is_separate_bgm = bool(is_separate_bgm)
+        return (
+            is_separate_bgm,  # Stem separation model
+            is_separate_bgm,  # Stem separation device
+            is_separate_bgm,  # Stem separation segment size
+            is_separate_bgm,  # Stem separation save files
+            is_separate_bgm,  # Stem separation offload
+            is_diarize,  # Diarization device
+            is_diarize,  # Diarization compute type
+            is_diarize,  # HuggingFace token
+            is_diarize and (word_timestamps or enable_whisperx_alignment),  # Word speaker labels
+            is_diarize,  # Fallback to nearest speaker
+            is_diarize,  # Diarization offload
+            # Word timestamps and WhisperX alignment both run forced alignment,
+            # which is where the word confidence scores come from.
+            word_timestamps or enable_whisperx_alignment,  # Confidence scores
+            not prefix,  # Hotwords have no effect while a prefix is set
+        )
+
     def create_pipeline_inputs(self):
         whisper_params = self.default_params["whisper"]
         diarization_params = self.default_params["diarization"]
         uvr_params = self.default_params["bgm_separation"]
 
-        with gr.Row():
-            dd_model = gr.Dropdown(
-                choices=self.whisper_inf.available_models,
-                value=whisper_params["model_size"],
-                label=_("Whisper Model"),
-                allow_custom_value=True,
-            )
-            dd_lang = gr.Dropdown(
-                choices=self.whisper_inf.available_langs + [AUTOMATIC_DETECTION],
-                                  value=AUTOMATIC_DETECTION if whisper_params["lang"] == AUTOMATIC_DETECTION
-                                  else whisper_params["lang"],
-                label=_("Whisper Language"),
-            )
-            dd_file_format = gr.Dropdown(
-                choices=["SRT", "WebVTT", "txt", "LRC"],
-                value=whisper_params["file_format"],
-                label=_("File Format"),
-            )
-        with gr.Row():
-            cb_translate = gr.Checkbox(
-                value=whisper_params["is_translate"],
-                label=_("Translate to English? (Whisper)"),
-                interactive=True,
-            )
-        with gr.Row():
-            cb_timestamp = gr.Checkbox(value=whisper_params["add_timestamp"],
-                                       label=_("Add a timestamp to the end of the filename"),
-                                       interactive=True)
+        with gr.Group():
+            with gr.Row():
+                dd_model = gr.Dropdown(
+                    choices=self.whisper_inf.available_models,
+                    value=whisper_params["model_size"],
+                    label=_("Whisper Model"),
+                    allow_custom_value=True,
+                )
+                dd_lang = gr.Dropdown(
+                    choices=self.whisper_inf.available_langs + [AUTOMATIC_DETECTION],
+                                      value=AUTOMATIC_DETECTION if whisper_params["lang"] == AUTOMATIC_DETECTION
+                                      else whisper_params["lang"],
+                    label=_("Whisper Language"),
+                )
+                dd_file_format = gr.Dropdown(
+                    choices=["SRT", "WebVTT", "txt", "LRC"],
+                    value=whisper_params["file_format"],
+                    label=_("File Format"),
+                )
+            with gr.Row():
+                cb_translate = gr.Checkbox(
+                    value=whisper_params["is_translate"],
+                    label=_("Translate to English? (Whisper)"),
+                    interactive=True,
+                )
+            with gr.Row():
+                cb_timestamp = gr.Checkbox(value=whisper_params["add_timestamp"],
+                                           label=_("Add a timestamp to the end of the filename"),
+                                           interactive=True)
 
-        with gr.Accordion(_("Advanced Parameters"), open=False):
-            whisper_inputs = WhisperParams.to_gradio_inputs(defaults=whisper_params, only_advanced=True,
-                                                            available_compute_types=self.whisper_inf.available_compute_types,
-                                                            compute_type=self.whisper_inf.current_compute_type,
-                                                            include_whisperx_controls=True)
-            # Remove legacy alignment toggle; we replace it with the dedicated section below
-            def _pop_component(label: str) -> tuple[int, gr.components.Component | None]:
-                for idx, component in enumerate(list(whisper_inputs)):
-                    if getattr(component, "label", None) == label:
-                        whisper_inputs.pop(idx)
-                        return idx, component
-                return len(whisper_inputs), None
-
-            alignment_index, removed_alignment_component = _pop_component(_("Use WhisperX Alignment"))
-            confidence_index, removed_confidence_component = _pop_component(_("Show Confidence Scores"))
-            confidence_threshold_index, removed_confidence_threshold_component = _pop_component(_("WhisperX Minimum Word Confidence"))
-
-        with gr.Accordion(_("Background Music Remover Filter"), open=False):
+        with gr.Accordion(_("Stem separation"), open=False, elem_classes="pipeline-options"):
             uvr_inputs = BGMSeparationParams.to_gradio_input(defaults=uvr_params,
                                                              available_models=self.whisper_inf.music_separator.available_models,
                                                              available_devices=self.whisper_inf.music_separator.available_devices,
                                                              device=self.whisper_inf.music_separator.device)
 
-        with gr.Accordion(_("Diarization"), open=False):
+        with gr.Accordion(_("Diarization"), open=False, elem_classes="pipeline-options"):
             diarization_inputs = DiarizationParams.to_gradio_inputs(defaults=diarization_params,
                                                                     available_devices=self.whisper_inf.available_diarization_devices,
                                                                     device=self.whisper_inf.diarization_device,
                                                                     available_compute_types=self.whisper_inf.available_diarization_compute_types,
                                                                     compute_type=self.whisper_inf.diarization_compute_type)
 
-        whisper_offload_component = whisper_inputs.pop() if whisper_inputs else None
-        diarization_offload_component = diarization_inputs.pop() if diarization_inputs else None
+        word_timing_accordion = gr.Accordion(_("Word timing"), open=False, elem_classes="pipeline-options")
 
-        with gr.Accordion(_("WhisperX Alignment & Speaker Tags"), open=False):
-            cb_whisperx_alignment = gr.Checkbox(
-                value=whisper_params.get("enable_whisperx_alignment", False),
-                label=_("Enable WhisperX Alignment"),
-                info=_("Refine word-level timestamps using WhisperX"),
-                interactive=True,
-            )
-            sl_whisperx_confidence = gr.Slider(
-                minimum=0.0,
-                maximum=1.0,
-                step=0.01,
-                value=whisper_params.get("whisperx_confidence_threshold", 0.0),
-                label=_("WhisperX Minimum Word Confidence"),
-                info=_("Discard aligned words below this WhisperX confidence score"),
-            )
-            cb_confidence_scores = gr.Checkbox(
-                value=whisper_params.get("show_confidence", False),
-                label=_("Show Confidence Scores"),
-                info=_("Append confidence values to segments and words"),
-                interactive=True,
-            )
-            cb_assign_word_speakers = gr.Checkbox(
-                value=diarization_params.get("assign_word_speakers", False),
-                label=_("Tag Words With Speaker Labels"),
-                info=_("Add diarization speaker tags to each aligned word"),
-                interactive=True,
-            )
-            cb_fill_nearest_speaker = gr.Checkbox(
-                value=diarization_params.get("fill_nearest_speaker", False),
-                label=_("Fallback to Nearest Speaker When No Overlap"),
-                info=_("Use the closest diarization segment when a word has no overlap"),
-                interactive=True,
-            )
+        with gr.Accordion(_("Advanced parameters"), open=False, elem_classes="pipeline-options"):
+            whisper_inputs = WhisperParams.to_gradio_inputs(defaults=whisper_params, only_advanced=True,
+                                                            available_compute_types=self.whisper_inf.available_compute_types,
+                                                            compute_type=self.whisper_inf.current_compute_type,
+                                                            include_whisperx_controls=True)
 
-        whisper_inserts = [
-            (alignment_index, cb_whisperx_alignment),
-            (confidence_threshold_index, sl_whisperx_confidence),
-            (confidence_index, cb_confidence_scores),
+        whisper_by_field = dict(zip(WhisperParams.GRADIO_FIELDS[3:], whisper_inputs))
+        with word_timing_accordion:
+            for field_name in ("word_timestamps", "enable_whisperx_alignment", "show_confidence"):
+                component = whisper_by_field[field_name]
+                component.unrender()
+                component.render()
+
+        cb_separate_bgm, *uvr_dependents = uvr_inputs
+        (
+            cb_diarize,
+            dd_diarization_device,
+            dd_diarization_compute_type,
+            tb_hf_token,
+            cb_assign_word_speakers,
+            cb_fill_nearest_speaker,
+            cb_diarization_offload,
+        ) = diarization_inputs
+        option_state_inputs = [
+            whisper_by_field["word_timestamps"],
+            whisper_by_field["enable_whisperx_alignment"],
+            cb_diarize,
+            cb_separate_bgm,
+            whisper_by_field["prefix"],
         ]
+        option_state_outputs = (
+            list(uvr_dependents)
+            + [
+                dd_diarization_device,
+                dd_diarization_compute_type,
+                tb_hf_token,
+                cb_assign_word_speakers,
+                cb_fill_nearest_speaker,
+                cb_diarization_offload,
+            ]
+            + [
+                whisper_by_field["show_confidence"],
+                whisper_by_field["hotwords"],
+            ]
+        )
 
-        for insert_idx, component in sorted(whisper_inserts, key=lambda item: item[0], reverse=True):
-            whisper_inputs.insert(insert_idx, component)
-        if whisper_offload_component is not None:
-            whisper_inputs.append(whisper_offload_component)
+        def _sync_option_states(*state_values):
+            return [
+                gr.update(interactive=enabled)
+                for enabled in self._pipeline_option_states(*state_values)
+            ]
 
-        diarization_inputs.extend([cb_assign_word_speakers, cb_fill_nearest_speaker])
-        if diarization_offload_component is not None:
-            diarization_inputs.append(diarization_offload_component)
+        initial_states = self._pipeline_option_states(
+            whisper_params.get("word_timestamps", False),
+            whisper_params.get("enable_whisperx_alignment", False),
+            diarization_params.get("is_diarize", False),
+            uvr_params.get("is_separate_bgm", False),
+            whisper_params.get("prefix") or "",
+        )
+        for initial_enabled, component in zip(initial_states, option_state_outputs):
+            component.interactive = initial_enabled
+
+        for component in option_state_inputs:
+            component.change(
+                fn=_sync_option_states,
+                inputs=option_state_inputs,
+                outputs=option_state_outputs,
+                queue=False,
+                api_name=False,
+            )
 
         self._prefix_labels(whisper_inputs, _("Whisper"))
         self._prefix_labels(diarization_inputs, _("Diarization"))
@@ -566,12 +622,23 @@ class App:
                             cb_include_subdirectory = gr.Checkbox(label="Include Subdirectory Files",
                                                                   info="When using Input Folder Path above, whether to include all files in the subdirectory or not.",
                                                                   visible=self.args.colab,
-                                                                  value=False)
+                                                                  value=False,
+                                                                  interactive=False,
+                                                                  elem_classes="folder-option")
                             cb_save_same_dir = gr.Checkbox(label="Save outputs at same directory",
                                                            info="When using Input Folder Path above, whether to save output in the same directory as inputs or not, in addition to the original"
                                                                 " output directory.",
                                                            visible=self.args.colab,
-                                                           value=True)
+                                                           value=True,
+                                                           interactive=False,
+                                                           elem_classes="folder-option")
+                            tb_input_folder.change(
+                                fn=self._folder_option_updates,
+                                inputs=[tb_input_folder],
+                                outputs=[cb_include_subdirectory, cb_save_same_dir],
+                                queue=False,
+                                api_name=False,
+                            )
                         pipeline_params, dd_file_format, cb_timestamp = self.create_pipeline_inputs()
 
                         with gr.Row():
@@ -616,8 +683,8 @@ class App:
 
                         with gr.Row():
                             btn_run = gr.Button(_("GENERATE SUBTITLE FILE"), variant="primary")
-                            btn_cancel_youtube = gr.Button(_("Cancel This Transcription"), variant="stop")
-                            btn_cancel_all_youtube = gr.Button(_("Cancel All Transcriptions"), variant="secondary")
+                        btn_cancel_youtube = gr.Button(_("Cancel This Transcription"), variant="stop")
+                        btn_cancel_all_youtube = gr.Button(_("Cancel All Transcriptions"), variant="secondary")
                         with gr.Row():
                             tb_indicator = gr.Textbox(label=_("Output"), scale=5)
                             files_subtitles = gr.Files(label=_("Downloadable output file"), scale=3)
@@ -658,8 +725,8 @@ class App:
 
                         with gr.Row():
                             btn_run = gr.Button(_("GENERATE SUBTITLE FILE"), variant="primary")
-                            btn_cancel_mic = gr.Button(_("Cancel This Transcription"), variant="stop")
-                            btn_cancel_all_mic = gr.Button(_("Cancel All Transcriptions"), variant="secondary")
+                        btn_cancel_mic = gr.Button(_("Cancel This Transcription"), variant="stop")
+                        btn_cancel_all_mic = gr.Button(_("Cancel All Transcriptions"), variant="secondary")
                         with gr.Row():
                             tb_indicator = gr.Textbox(label=_("Output"), scale=5)
                             files_subtitles = gr.Files(label=_("Downloadable output file"), scale=3)
@@ -756,23 +823,24 @@ class App:
                             file_subs = gr.Files(type="filepath", label=_("Upload Subtitle Files to translate here"))
 
                         with gr.TabItem(_("DeepL API")):  # sub tab1
-                            with gr.Row():
-                                tb_api_key = gr.Textbox(label=_("Your Auth Key (API KEY)"),
-                                                        value=deepl_params["api_key"])
-                            with gr.Row():
-                                dd_source_lang = gr.Dropdown(label=_("Source Language"),
-                                                             value=AUTOMATIC_DETECTION if deepl_params["source_lang"] == AUTOMATIC_DETECTION
-                                                             else deepl_params["source_lang"],
-                                                             choices=list(self.deepl_api.available_source_langs.keys()))
-                                dd_target_lang = gr.Dropdown(label=_("Target Language"),
-                                                             value=deepl_params["target_lang"],
-                                                             choices=list(self.deepl_api.available_target_langs.keys()))
-                            with gr.Row():
-                                cb_is_pro = gr.Checkbox(label=_("Pro User?"), value=deepl_params["is_pro"])
-                            with gr.Row():
-                                cb_timestamp = gr.Checkbox(value=translation_params["add_timestamp"],
-                                                           label=_("Add a timestamp to the end of the filename"),
-                                                           interactive=True)
+                            with gr.Group():
+                                with gr.Row():
+                                    tb_api_key = gr.Textbox(label=_("Your Auth Key (API KEY)"),
+                                                            value=deepl_params["api_key"])
+                                with gr.Row():
+                                    dd_source_lang = gr.Dropdown(label=_("Source Language"),
+                                                                 value=AUTOMATIC_DETECTION if deepl_params["source_lang"] == AUTOMATIC_DETECTION
+                                                                 else deepl_params["source_lang"],
+                                                                 choices=list(self.deepl_api.available_source_langs.keys()))
+                                    dd_target_lang = gr.Dropdown(label=_("Target Language"),
+                                                                 value=deepl_params["target_lang"],
+                                                                 choices=list(self.deepl_api.available_target_langs.keys()))
+                                with gr.Row():
+                                    cb_is_pro = gr.Checkbox(label=_("Pro User?"), value=deepl_params["is_pro"])
+                                with gr.Row():
+                                    cb_timestamp = gr.Checkbox(value=translation_params["add_timestamp"],
+                                                               label=_("Add a timestamp to the end of the filename"),
+                                                               interactive=True)
                             with gr.Row():
                                 btn_run = gr.Button(_("TRANSLATE SUBTITLE FILE"), variant="primary")
                             with gr.Row():
@@ -792,22 +860,23 @@ class App:
                             outputs=None)
 
                         with gr.TabItem(_("NLLB")):  # sub tab2
-                            with gr.Row():
-                                dd_model_size = gr.Dropdown(label=_("Model"), value=nllb_params["model_size"],
-                                                            choices=self.nllb_inf.available_models)
-                                dd_source_lang = gr.Dropdown(label=_("Source Language"),
-                                                             value=nllb_params["source_lang"],
-                                                             choices=self.nllb_inf.available_source_langs)
-                                dd_target_lang = gr.Dropdown(label=_("Target Language"),
-                                                             value=nllb_params["target_lang"],
-                                                             choices=self.nllb_inf.available_target_langs)
-                            with gr.Row():
-                                nb_max_length = gr.Number(label="Max Length Per Line", value=nllb_params["max_length"],
-                                                          precision=0)
-                            with gr.Row():
-                                cb_timestamp = gr.Checkbox(value=translation_params["add_timestamp"],
-                                                           label=_("Add a timestamp to the end of the filename"),
-                                                           interactive=True)
+                            with gr.Group():
+                                with gr.Row():
+                                    dd_model_size = gr.Dropdown(label=_("Model"), value=nllb_params["model_size"],
+                                                                choices=self.nllb_inf.available_models)
+                                    dd_source_lang = gr.Dropdown(label=_("Source Language"),
+                                                                 value=nllb_params["source_lang"],
+                                                                 choices=self.nllb_inf.available_source_langs)
+                                    dd_target_lang = gr.Dropdown(label=_("Target Language"),
+                                                                 value=nllb_params["target_lang"],
+                                                                 choices=self.nllb_inf.available_target_langs)
+                                with gr.Row():
+                                    nb_max_length = gr.Number(label="Max Length Per Line", value=nllb_params["max_length"],
+                                                              precision=0)
+                                with gr.Row():
+                                    cb_timestamp = gr.Checkbox(value=translation_params["add_timestamp"],
+                                                               label=_("Add a timestamp to the end of the filename"),
+                                                               interactive=True)
                             with gr.Row():
                                 btn_run = gr.Button(_("TRANSLATE SUBTITLE FILE"), variant="primary")
                             with gr.Row():
@@ -830,12 +899,13 @@ class App:
 
                     with gr.TabItem(_("BGM Separation")):
                         files_audio = gr.Files(type="filepath", label=_("Upload Audio Files to separate background music"))
-                        dd_uvr_device = gr.Dropdown(label=_("Device"), value=self.whisper_inf.music_separator.device,
-                                                    choices=self.whisper_inf.music_separator.available_devices)
-                        dd_uvr_model_size = gr.Dropdown(label=_("Model"), value=uvr_params["uvr_model_size"],
-                                                        choices=self.whisper_inf.music_separator.available_models)
-                        nb_uvr_segment_size = gr.Number(label="Segment Size", value=uvr_params["segment_size"],
-                                                        precision=0)
+                        with gr.Group():
+                            dd_uvr_model_size = gr.Dropdown(label=_("Model"), value=uvr_params["uvr_model_size"],
+                                                            choices=self.whisper_inf.music_separator.available_models)
+                            dd_uvr_device = gr.Dropdown(label=_("Device"), value=self.whisper_inf.music_separator.device,
+                                                        choices=self.whisper_inf.music_separator.available_devices)
+                            nb_uvr_segment_size = gr.Number(label="Segment Size", value=uvr_params["segment_size"],
+                                                            precision=0)
                         cb_uvr_save_file = gr.Checkbox(label=_("Save separated files to output"),
                                                        value=True, visible=False)
                         btn_run = gr.Button(_("SEPARATE BACKGROUND MUSIC"), variant="primary")

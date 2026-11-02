@@ -114,7 +114,7 @@ class WhisperXInference(BaseTranscriptionPipeline):
                         start=word.get("start"),
                         end=word.get("end"),
                         word=word.get("word"),
-                        probability=word.get("confidence"),
+                        probability=word.get("score", word.get("confidence")),
                     )
                     for word in raw_words
                 ]
@@ -255,11 +255,6 @@ class WhisperXInference(BaseTranscriptionPipeline):
             )
             return
 
-        temperatures = (
-            (params.temperature,)
-            if isinstance(params.temperature, (int, float))
-            else params.temperature
-        )
         option_overrides: Dict[
             str,
             Union[
@@ -267,33 +262,16 @@ class WhisperXInference(BaseTranscriptionPipeline):
                 float,
                 int,
                 Optional[str],
-                Optional[int],
-                Tuple[float, ...],
                 List[int],
             ],
         ] = {
             "beam_size": params.beam_size,
-            "best_of": params.best_of,
             "patience": params.patience,
             "length_penalty": params.length_penalty,
-            "repetition_penalty": params.repetition_penalty,
-            "no_repeat_ngram_size": params.no_repeat_ngram_size,
-            "temperatures": temperatures,
-            "compression_ratio_threshold": params.compression_ratio_threshold,
-            "log_prob_threshold": params.log_prob_threshold,
-            "no_speech_threshold": params.no_speech_threshold,
-            "condition_on_previous_text": params.condition_on_previous_text,
-            "prompt_reset_on_temperature": params.prompt_reset_on_temperature,
             "initial_prompt": params.initial_prompt,
             "prefix": params.prefix,
             "suppress_blank": params.suppress_blank,
             "suppress_tokens": params.suppress_tokens,
-            "max_initial_timestamp": params.max_initial_timestamp,
-            "word_timestamps": params.word_timestamps,
-            "prepend_punctuations": params.prepend_punctuations,
-            "append_punctuations": params.append_punctuations,
-            "max_new_tokens": params.max_new_tokens,
-            "hallucination_silence_threshold": params.hallucination_silence_threshold,
             "hotwords": params.hotwords or None,
         }
 

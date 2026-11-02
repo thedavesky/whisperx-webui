@@ -35,6 +35,30 @@ CSS = """
 #md_project a:hover {
   text-decoration: underline;
 }
+
+div.block.pipeline-options {
+    padding: 0;
+}
+
+.pipeline-options > .label-wrap {
+    padding: var(--block-padding);
+}
+
+.pipeline-options .form {
+    border: 0;
+    box-shadow: none;
+}
+
+div.block.pipeline-options > .label-wrap.open {
+    margin-bottom: 0;
+}
+
+.pipeline-options .block:has(input:disabled, textarea:disabled),
+.folder-option:has(input:disabled) {
+    background-color: var(--background-fill-secondary);
+    filter: grayscale(1);
+    opacity: 0.65;
+}
 """
 
 MARKDOWN = """

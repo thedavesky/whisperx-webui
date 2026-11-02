@@ -145,32 +145,16 @@ class WhisperXWrapper:
 
         option_updates = {
             "beam_size": params.beam_size,
-            "best_of": params.best_of,
             "patience": params.patience,
             "length_penalty": params.length_penalty,
-            "repetition_penalty": params.repetition_penalty,
-            "no_repeat_ngram_size": params.no_repeat_ngram_size,
-            "compression_ratio_threshold": params.compression_ratio_threshold,
-            "log_prob_threshold": params.log_prob_threshold,
-            "no_speech_threshold": params.no_speech_threshold,
-            "condition_on_previous_text": params.condition_on_previous_text,
-            "prompt_reset_on_temperature": params.prompt_reset_on_temperature,
-            "temperatures": [params.temperature] if params.temperature is not None else None,
             "initial_prompt": params.initial_prompt,
             "prefix": params.prefix,
             "suppress_blank": params.suppress_blank,
             "suppress_tokens": params.suppress_tokens,
-            "max_initial_timestamp": params.max_initial_timestamp,
             "without_timestamps": False,
-            "word_timestamps": params.word_timestamps,
-            "prepend_punctuations": params.prepend_punctuations,
-            "append_punctuations": params.append_punctuations,
-            "max_new_tokens": params.max_new_tokens,
-            "hallucination_silence_threshold": params.hallucination_silence_threshold,
             "hotwords": params.hotwords,
         }
 
-        option_updates = {k: v for k, v in option_updates.items() if v is not None}
         self._model.options = replace(self._model.options, **option_updates)
 
     @staticmethod

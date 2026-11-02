@@ -1,6 +1,6 @@
 import gradio as gr
 import torch
-from typing import Optional, Dict, List, Union, NamedTuple
+from typing import ClassVar, Optional, Dict, List, Union, NamedTuple
 from fastapi import Query
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from gradio_i18n import Translate, gettext as _
@@ -109,6 +109,16 @@ class DiarizationParams(BaseParams):
                 label=_("HuggingFace Token"),
                 value=defaults.get("hf_token", cls.__fields__["hf_token"].default),
                 info=_("This is only needed the first time you download the model")
+            ),
+            gr.Checkbox(
+                label=_("Tag Words With Speaker Labels"),
+                value=defaults.get("assign_word_speakers", cls.__fields__["assign_word_speakers"].default),
+                info=_("Add diarization speaker tags to each aligned word"),
+            ),
+            gr.Checkbox(
+                label=_("Fallback to Nearest Speaker When No Overlap"),
+                value=defaults.get("fill_nearest_speaker", cls.__fields__["fill_nearest_speaker"].default),
+                info=_("Use the closest diarization segment when a word has no overlap"),
             ),
             gr.Checkbox(
                 label=_("Offload sub model when finished"),
@@ -319,6 +329,29 @@ class WhisperParams(BaseParams):
         except Exception as e:
             raise ValueError(f"Invalid Suppress Tokens. The value must be type of List[int]: {e}")
 
+    GRADIO_FIELDS: ClassVar[List[str]] = [
+        "model_size",
+        "lang",
+        "is_translate",
+        "beam_size",
+        "compute_type",
+        "patience",
+        "initial_prompt",
+        "length_penalty",
+        "prefix",
+        "suppress_blank",
+        "suppress_tokens",
+        "word_timestamps",
+        "enable_whisperx_alignment",
+        "chunk_length",
+        "hotwords",
+        "batch_size",
+        "whisperx_vad_onset",
+        "whisperx_vad_offset",
+        "show_confidence",
+        "enable_offload",
+    ]
+
     @classmethod
     def to_gradio_inputs(
         cls,
@@ -330,6 +363,7 @@ class WhisperParams(BaseParams):
         compute_type: Optional[str] = None,
         include_whisperx_controls: bool = True,
     ):
+        defaults = defaults or {}
         inputs = []
         if not only_advanced:
             inputs += [
@@ -356,91 +390,36 @@ class WhisperParams(BaseParams):
         ):
             compute_type_value = compute_type or available_compute_types[0]
 
+        compute_type_dropdown = gr.Dropdown(
+            label="Compute Type",
+            choices=["float16", "int8", "int16"] if available_compute_types is None else available_compute_types,
+            value=compute_type_value,
+            info="Computation type for transcription"
+        )
+        beam_size_number = gr.Number(
+            label="Beam Size",
+            value=defaults.get("beam_size", cls.__fields__["beam_size"].default),
+            precision=0,
+            info="Beam size for decoding"
+        )
+
         inputs += [
-            gr.Number(
-                label="Beam Size",
-                value=defaults.get("beam_size", cls.__fields__["beam_size"].default),
-                precision=0,
-                info="Beam size for decoding"
-            ),
-            gr.Number(
-                label="Log Probability Threshold",
-                value=defaults.get("log_prob_threshold", cls.__fields__["log_prob_threshold"].default),
-                info="Threshold for average log probability of sampled tokens"
-            ),
-            gr.Number(
-                label="No Speech Threshold",
-                value=defaults.get("no_speech_threshold", cls.__fields__["no_speech_threshold"].default),
-                info="Threshold for detecting silence"
-            ),
-            gr.Dropdown(
-                label="Compute Type",
-                choices=["float16", "int8", "int16"] if available_compute_types is None else available_compute_types,
-                value=compute_type_value,
-                info="Computation type for transcription"
-            ),
-            gr.Number(
-                label="Best Of",
-                value=defaults.get("best_of", cls.__fields__["best_of"].default),
-                precision=0,
-                info="Number of candidates when sampling"
-            ),
+            beam_size_number,
+            compute_type_dropdown,
             gr.Number(
                 label="Patience",
                 value=defaults.get("patience", cls.__fields__["patience"].default),
                 info="Beam search patience factor"
-            ),
-            gr.Checkbox(
-                label="Condition On Previous Text",
-                value=defaults.get("condition_on_previous_text", cls.__fields__["condition_on_previous_text"].default),
-                info="Use previous output as prompt for next window"
-            ),
-            gr.Slider(
-                label="Prompt Reset On Temperature",
-                value=defaults.get("prompt_reset_on_temperature",
-                                   cls.__fields__["prompt_reset_on_temperature"].default),
-                minimum=0,
-                maximum=1,
-                step=0.01,
-                info="Temperature threshold for resetting prompt"
             ),
             gr.Textbox(
                 label="Initial Prompt",
                 value=defaults.get("initial_prompt", GRADIO_NONE_STR),
                 info="Initial prompt for first window"
             ),
-            gr.Slider(
-                label="Temperature",
-                value=defaults.get("temperature", cls.__fields__["temperature"].default),
-                minimum=0.0,
-                step=0.01,
-                maximum=1.0,
-                info="Temperature for sampling"
-            ),
-            gr.Number(
-                label="Compression Ratio Threshold",
-                value=defaults.get("compression_ratio_threshold",
-                                   cls.__fields__["compression_ratio_threshold"].default),
-                info="Threshold for gzip compression ratio"
-            )
-        ]
-
-        whisperx_inputs = [
             gr.Number(
                 label="Length Penalty",
                 value=defaults.get("length_penalty", cls.__fields__["length_penalty"].default),
-                info="Exponential length penalty",
-            ),
-            gr.Number(
-                label="Repetition Penalty",
-                value=defaults.get("repetition_penalty", cls.__fields__["repetition_penalty"].default),
-                info="Penalty for repeated tokens"
-            ),
-            gr.Number(
-                label="No Repeat N-gram Size",
-                value=defaults.get("no_repeat_ngram_size", cls.__fields__["no_repeat_ngram_size"].default),
-                precision=0,
-                info="Size of n-grams to prevent repetition"
+                info="Exponential length penalty"
             ),
             gr.Textbox(
                 label="Prefix",
@@ -457,137 +436,71 @@ class WhisperParams(BaseParams):
                 value=defaults.get("suppress_tokens", "[-1]"),
                 info="Token IDs to suppress"
             ),
-            gr.Number(
-                label="Max Initial Timestamp",
-                value=defaults.get("max_initial_timestamp", cls.__fields__["max_initial_timestamp"].default),
-                info="Maximum initial timestamp"
-            ),
             gr.Checkbox(
                 label="Word Timestamps",
                 value=defaults.get("word_timestamps", cls.__fields__["word_timestamps"].default),
                 info="Extract word-level timestamps"
             ),
+            gr.Checkbox(
+                label=_("Enable WhisperX Alignment"),
+                value=defaults.get(
+                    "enable_whisperx_alignment",
+                    cls.__fields__["enable_whisperx_alignment"].default,
+                ),
+                info=_("Refine word-level timestamps using WhisperX"),
+            ),
         ]
-        if include_whisperx_controls:
-            whisperx_inputs.extend(
-                [
-                    gr.Checkbox(
-                        label="Use WhisperX Alignment",
-                        value=defaults.get(
-                            "enable_whisperx_alignment",
-                            cls.__fields__["enable_whisperx_alignment"].default,
-                        ),
-                        info="Leverages WhisperX forced alignment for word-level timestamps",
-                    ),
-                    gr.Textbox(
-                        label="Prepend Punctuations",
-                        value=defaults.get(
-                            "prepend_punctuations",
-                            cls.__fields__["prepend_punctuations"].default,
-                        ),
-                        info="Punctuations to merge with next word",
-                    ),
-                    gr.Textbox(
-                        label="Append Punctuations",
-                        value=defaults.get(
-                            "append_punctuations",
-                            cls.__fields__["append_punctuations"].default,
-                        ),
-                        info="Punctuations to merge with previous word",
-                    ),
-                    gr.Number(
-                        label="Max New Tokens",
-                        value=defaults.get("max_new_tokens", GRADIO_NONE_NUMBER_MIN),
-                        precision=0,
-                        info="Maximum number of new tokens per chunk",
-                    ),
-                    gr.Number(
-                        label="Chunk Length (s)",
-                        value=defaults.get("chunk_length", cls.__fields__["chunk_length"].default),
-                        precision=0,
-                        info="Length of audio segments in seconds",
-                    ),
-                    gr.Number(
-                        label="Hallucination Silence Threshold (sec)",
-                        value=defaults.get(
-                            "hallucination_silence_threshold",
-                            GRADIO_NONE_NUMBER_MIN,
-                        ),
-                        info="Threshold for skipping silent periods in hallucination detection",
-                    ),
-                    gr.Textbox(
-                        label="Hotwords",
-                        value=defaults.get("hotwords", cls.__fields__["hotwords"].default),
-                        info="Hotwords/hint phrases for the model",
-                    ),
-                    gr.Number(
-                        label="Language Detection Threshold",
-                        value=defaults.get(
-                            "language_detection_threshold",
-                            GRADIO_NONE_NUMBER_MIN,
-                        ),
-                        info="Threshold for language detection probability",
-                    ),
-                    gr.Number(
-                        label="Language Detection Segments",
-                        value=defaults.get(
-                            "language_detection_segments",
-                            cls.__fields__["language_detection_segments"].default,
-                        ),
-                        precision=0,
-                        info="Number of segments for language detection",
-                    ),
-                    gr.Number(
-                        label="Batch Size",
-                        value=defaults.get("batch_size", cls.__fields__["batch_size"].default),
-                        precision=0,
-                        info="Batch size for processing",
-                    ),
-                    gr.Slider(
-                        minimum=0.0,
-                        maximum=1.0,
-                        step=0.01,
-                        label=_("WhisperX Minimum Word Confidence"),
-                        value=defaults.get(
-                            "whisperx_confidence_threshold",
-                            cls.__fields__["whisperx_confidence_threshold"].default,
-                        ),
-                        info=_("Discard aligned words below this WhisperX confidence score"),
-                    ),
-                    gr.Slider(
-                        minimum=0.01,
-                        maximum=0.99,
-                        step=0.001,
-                        label=_("Pyannote VAD Onset Threshold"),
-                        value=defaults.get(
-                            "whisperx_vad_onset",
-                            cls.model_fields["whisperx_vad_onset"].default,
-                        ),
-                        info=_("WhisperX's built-in speech filter. Scores above this value start a speech chunk"),
-                    ),
-                    gr.Slider(
-                        minimum=0.01,
-                        maximum=0.99,
-                        step=0.001,
-                        label=_("Pyannote VAD Offset Threshold"),
-                        value=defaults.get(
-                            "whisperx_vad_offset",
-                            cls.model_fields["whisperx_vad_offset"].default,
-                        ),
-                        info=_("WhisperX's built-in speech filter. Scores below this value end a speech chunk"),
-                    ),
-                    gr.Checkbox(
-                        label=_("Show Confidence Scores"),
-                        value=defaults.get(
-                            "show_confidence",
-                            cls.__fields__["show_confidence"].default,
-                        ),
-                        info=_("Append confidence values to segment and word outputs"),
-                    ),
-                ]
-            )
 
-        inputs += whisperx_inputs
+        if include_whisperx_controls:
+            inputs += [
+                gr.Number(
+                    label="Chunk Length (s)",
+                    value=defaults.get("chunk_length", cls.__fields__["chunk_length"].default),
+                    precision=0,
+                    info="Length of audio segments in seconds",
+                ),
+                gr.Textbox(
+                    label="Hotwords",
+                    value=defaults.get("hotwords", GRADIO_NONE_STR),
+                    info="Hotwords/hint phrases for the model",
+                ),
+                gr.Number(
+                    label="Batch Size",
+                    value=defaults.get("batch_size", cls.__fields__["batch_size"].default),
+                    precision=0,
+                    info="Batch size for processing",
+                ),
+                gr.Slider(
+                    minimum=0.01,
+                    maximum=0.99,
+                    step=0.001,
+                    label=_("Pyannote VAD Onset Threshold"),
+                    value=defaults.get(
+                        "whisperx_vad_onset",
+                        cls.model_fields["whisperx_vad_onset"].default,
+                    ),
+                    info=_("WhisperX's built-in speech filter. Scores above this value start a speech chunk"),
+                ),
+                gr.Slider(
+                    minimum=0.01,
+                    maximum=0.99,
+                    step=0.001,
+                    label=_("Pyannote VAD Offset Threshold"),
+                    value=defaults.get(
+                        "whisperx_vad_offset",
+                        cls.model_fields["whisperx_vad_offset"].default,
+                    ),
+                    info=_("WhisperX's built-in speech filter. Scores below this value end a speech chunk"),
+                ),
+                gr.Checkbox(
+                    label=_("Show Confidence Scores"),
+                    value=defaults.get(
+                        "show_confidence",
+                        cls.__fields__["show_confidence"].default,
+                    ),
+                    info=_("Append confidence values to segment and word outputs"),
+                ),
+            ]
 
         inputs += [
             gr.Checkbox(

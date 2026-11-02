@@ -8,13 +8,15 @@ en:
     translation feature)
   Add a timestamp to the end of the filename: Add a timestamp to the end of the filename
   Offload sub model when finished: Offload model when finished
-  Advanced Parameters: Advanced Parameters
+  Advanced parameters: Advanced parameters
   Enabling this will remove background music: Enabling this will remove background
     music by submodel before transcribing
   Enable Background Music Remover Filter: Enable Background Music Remover Filter
   Device: Device
   Save separated files to output: Save separated files to output
   Background Music Remover Filter: Background Music Remover Filter
+  Stem separation: Stem separation
+  Word timing: Word timing
   Enable Diarization: Enable Diarization
   This is only needed the first time you download the model: This is only needed the
     first time you download the model. If you already have models, you don't need
@@ -66,12 +68,14 @@ ko:
   Translate to English?: 영어로 번역합니까? (위스퍼 모델 자체 번역 기능)
   Add a timestamp to the end of the filename: 파일 이름 끝에 타임스태프 붙이기
   Offload sub model when finished: 완료 후 모델 오프로드. (VRAM 이 부족할 시 체크하세요.)
-  Advanced Parameters: 고급 변수
+  Advanced parameters: 고급 변수
   Enabling this will remove background music: 받아쓰기 이전에 먼저 배경 음악 제거용 서브 모델을 활성화 합니다.
   Enable Background Music Remover Filter: 배경 음악 제거 필터 활성화
   Device: 디바이스
   Save separated files to output: 분리된 배경 음악 & 음성 파일 따로 출력 폴더에 저장
   Background Music Remover Filter: 배경 음악 제거 필터
+  Stem separation: 배경 음악 제거 필터
+  Word timing: 단어 타임스태프
   Enable Diarization: 화자 구분 활성화
   This is only needed the first time you download the model: 모델을 처음 다운받을 때만 토큰이 필요합니다.
     이미 다운로드 받으신 상태라면 입력하지 않아도 됩니다. 모델을 다운 받기 위해선 "https://huggingface.co/pyannote/speaker-diarization-3.1"
@@ -121,13 +125,15 @@ ja:
   Translate to English?: Translate to English?
   Add a timestamp to the end of the filename: Add a timestamp to the end of the filename
   Offload sub model when finished: Offload model when finished
-  Advanced Parameters: Advanced Parameters
+  Advanced parameters: Advanced parameters
   Enabling this will remove background music: Enabling this will remove background
     music by submodel before transcribing
   Enable Background Music Remover Filter: Enable Background Music Remover Filter
   Device: Device
   Save separated files to output: Save separated files to output
   Background Music Remover Filter: Background Music Remover Filter
+  Stem separation: Stem separation
+  Word timing: Word timing
   Enable Diarization: Enable Diarization
   This is only needed the first time you download the model: This is only needed the
     first time you download the model. If you already have models, you don't need
@@ -179,13 +185,15 @@ es:
   Translate to English?: Translate to English?
   Add a timestamp to the end of the filename: Add a timestamp to the end of the filename
   Offload sub model when finished: Offload model when finished
-  Advanced Parameters: Advanced Parameters
+  Advanced parameters: Advanced parameters
   Enabling this will remove background music: Enabling this will remove background
     music by submodel before transcribing
   Enable Background Music Remover Filter: Enable Background Music Remover Filter
   Device: Device
   Save separated files to output: Save separated files to output
   Background Music Remover Filter: Background Music Remover Filter
+  Stem separation: Stem separation
+  Word timing: Word timing
   Enable Diarization: Enable Diarization
   This is only needed the first time you download the model: This is only needed the
     first time you download the model. If you already have models, you don't need
@@ -238,7 +246,7 @@ fr:
   Add a timestamp to the end of the filename: Ajouter un timestamp à la fin du nom
     de fichier
   Offload sub model when finished: Décharger le sous-modèle une fois terminé
-  Advanced Parameters: Paramètres avancés
+  Advanced parameters: Paramètres avancés
   Enabling this will remove background music: L'activation supprimera la musique de
     fond via un sous-modèle avant la transcription
   Enable Background Music Remover Filter: Activer le filtre de suppression de musique
@@ -246,6 +254,8 @@ fr:
   Device: Périphérique
   Save separated files to output: Sauvegarder les fichiers séparés dans la sortie
   Background Music Remover Filter: Filtre de suppression de musique de fond
+  Stem separation: Filtre de suppression de musique de fond
+  Word timing: Horodatage des mots
   Enable Diarization: Activer la diarisation
   This is only needed the first time you download the model: Le token n'est nécessaire
     que lors du premier téléchargement du modèle. Si vous avez déjà les modèles, vous
@@ -299,13 +309,15 @@ de:
   Translate to English?: Ins Englische übersetzen?
   Add a timestamp to the end of the filename: Zeitstempel an den Dateinamen anhängen
   Offload sub model when finished: Submodell entladen wenn nicht mehr benötigt
-  Advanced Parameters: Erweiterte Parameter
+  Advanced parameters: Erweiterte Parameter
   Enabling this will remove background music: Aktivierung entfernt Hintergrundmusik
     mithilfe des Submodells vor der Transkription
   Enable Background Music Remover Filter: Hintergrundmusik-Entfernungsfilter aktivieren
   Device: Gerät
   Save separated files to output: Getrennte Dateien in der Ausgabe speichern
   Background Music Remover Filter: Hintergrundmusik-Entfernungsfilter
+  Stem separation: Hintergrundmusik-Entfernungsfilter
+  Word timing: Wortzeitstempel
   Enable Diarization: Diarisierung aktivieren
   This is only needed the first time you download the model: Dies ist nur erforderlich,
     wenn Sie das Modell zum ersten Mal herunterladen. Falls Sie die Modelle bereits
@@ -360,12 +372,14 @@ nl:
     vertaalfunctie)
   Add a timestamp to the end of the filename: Tijdstempel aan het einde van de bestandsnaam toevoegen
   Offload sub model when finished: Offload model na voltooiing
-  Advanced Parameters: Geavanceerde Parameters
+  Advanced parameters: Geavanceerde Parameters
   Enabling this will remove background music: Hiermee wordt achtergrondmuziek door het submodel verwijderd, voorafgaand aan de transcriptie
   Enable Background Music Remover Filter: Achtergrondmuziek-verwijderingsfilter inschakelen
   Device: Apparaat
   Save separated files to output: Resultaat als aparte bestanden opslaan
   Background Music Remover Filter: Achtergrondmuziek-verwijderingsfilter
+  Stem separation: Achtergrondmuziek-verwijderingsfilter
+  Word timing: Woordtijdstempels
   Enable Diarization: Diarisatie inschakelen
   This is only needed the first time you download the model: Dit is alleen nodig de eerste keer dat
     je het model downloadt. Als je al modellen hebt, is dit niet nodig. Om het model te downloaden
@@ -416,12 +430,14 @@ zh:
   Translate to English?: 将字幕翻译成英语
   Add a timestamp to the end of the filename: 在文件名末尾加入时间戳
   Offload sub model when finished: 完成后卸载子模型
-  Advanced Parameters: 高级参数
+  Advanced parameters: 高级参数
   Enabling this will remove background music: 启用此功能将会在进行转录前去除背景音乐
   Enable Background Music Remover Filter: 去除背景音乐
   Device: 设备
   Save separated files to output: 导出分离出的音频文件
   Background Music Remover Filter: 背景音乐消除设置
+  Stem separation: 背景音乐消除设置
+  Word timing: 单词时间戳
   Enable Diarization: 进行说话人分离处理
   This is only needed the first time you download the model: 当且仅当您首次下载模型时才需要在此输入令牌，如果您已有模型则无需输入。
     要下载模型，您必须先在"https://huggingface.co/pyannote/speaker-diarization-3.1" 与 "https://huggingface.co/pyannote/segmentation-3.0"
@@ -471,13 +487,15 @@ uk:
   Translate to English?: Перекласти на англійську?
   Add a timestamp to the end of the filename: Додати мітку часу до кінця імені файлу
   Offload sub model when finished: Після завершення вивантажте підмодель
-  Advanced Parameters: Розширені параметри
+  Advanced parameters: Розширені параметри
   Enabling this will remove background music: Увімкнення цього видалить фонову музику
     за допомогою підмоделі перед транскрипцією
   Enable Background Music Remover Filter: Увімкнути фільтр видалення фонової музики
   Device: Пристрій
   Save separated files to output: Зберегти розділені файли до вихідної папки
   Background Music Remover Filter: Фільтр видалення фонової музики
+  Stem separation: Фільтр видалення фонової музики
+  Word timing: Мітки часу слів
   Enable Diarization: Увімкнути діаризацію
   This is only needed the first time you download the model: Це потрібно лише при
     першому завантаженні моделі. Якщо у вас вже є моделі, вводити не потрібно. Щоб
@@ -531,13 +549,15 @@ ru:
   Add a timestamp to the end of the filename: Добавить метку времени в конец имени
     файла
   Offload sub model when finished: Выгрузить подмодель после завершения
-  Advanced Parameters: Расширенные параметры
+  Advanced parameters: Расширенные параметры
   Enabling this will remove background music: Включение этого удалит фоновую музыку
     с помощью подмодели перед транскрипцией
   Enable Background Music Remover Filter: Включить фильтр удаления фоновой музыки
   Device: Устройство
   Save separated files to output: Сохранить разделенные файлы в выходную папку
   Background Music Remover Filter: Фильтр удаления фоновой музыки
+  Stem separation: Фильтр удаления фоновой музыки
+  Word timing: Метки времени слов
   Enable Diarization: Включить диаризацию
   This is only needed the first time you download the model: Это нужно только при
     первом скачивании модели. Если у вас уже есть модели, вводить не нужно. Чтобы
@@ -590,13 +610,15 @@ tr:
   Translate to English?: İngilizceye Çevir?
   Add a timestamp to the end of the filename: Dosya adının sonuna zaman damgası ekle
   Offload sub model when finished: Alt modeli bitirdiğinizde boşaltın
-  Advanced Parameters: Gelişmiş Parametreler
+  Advanced parameters: Gelişmiş Parametreler
   Enabling this will remove background music: Bunu etkinleştirmek, arka plan müziğini
     alt model tarafından transkripsiyondan önce kaldıracaktır
   Enable Background Music Remover Filter: Arka Plan Müziği Kaldırma Filtresini Etkinleştir
   Device: Cihaz
   Save separated files to output: Ayrılmış dosyaları çıktıya kaydet
   Background Music Remover Filter: Arka Plan Müziği Kaldırma Filtresi
+  Stem separation: Arka Plan Müziği Kaldırma Filtresi
+  Word timing: Kelime zaman damgaları
   Enable Diarization: Konuşmacı Ayrımını Etkinleştir
   This is only needed the first time you download the model: Bu, modeli ilk kez indirirken
     gereklidir. Zaten modelleriniz varsa girmenize gerek yok. Modeli indirmek için
@@ -649,13 +671,15 @@ eu:
   Translate to English?: Itzuli ingelesera?
   Add a timestamp to the end of the filename: Gehitu denbora marka fitxategi amaieran
   Offload sub model when finished: Deskargatu azpieredua amaitutakoan
-  Advanced Parameters: Aukera Aurreratuak
+  Advanced parameters: Aukera Aurreratuak
   Enabling this will remove background music: Hau aktibatuz, transkribatu aurretik
     atzeko musika ezabatuko zaio azpieredu baten bidez
   Enable Background Music Remover Filter: Aktibatu Atzeko Musika Ezabatzeko Filtroa
   Device: Gailua
   Save separated files to output: Gorde fitxategi bereiziak irteeran
   Background Music Remover Filter: Atzeko Musika Ezabatzeko Filtroa
+  Stem separation: Atzeko Musika Ezabatzeko Filtroa
+  Word timing: Hitzen denbora markak
   Enable Diarization: Aktibatu Diarizazioa
   This is only needed the first time you download the model: Soilik beharrezkoa eredua
     deskargatzen den lehen aldian. Jadanik eredu hauek deskargatuta, ez duzu berriz
@@ -714,8 +738,10 @@ he: # Hebrew
   File Format: פורמט קובץ
   Translate to English?: לתרגם לאנגלית?
   Add a timestamp to the end of the filename: הוסף חותמת זמן לסוף שם הקובץ
-  Advanced Parameters: פרמטרים מתקדמים
+  Advanced parameters: פרמטרים מתקדמים
   Background Music Remover Filter: מסנן הסרת מוזיקת רקע
+  Stem separation: מסנן הסרת מוזיקת רקע
+  Word timing: תזמון מילים
   Enabling this will remove background music: הפעלה תסיר מוזיקת רקע באמצעות מודל משנה לפני תמלול
   Enable Background Music Remover Filter: אפשר מסנן הסרת מוזיקת רקע
   Save separated files to output: שמור קבצים מופרדים לפלט
@@ -758,12 +784,14 @@ zh-TW:
   Translate to English? (Whisper's End-To-End Speech-To-Text translation feature): 翻譯成英文？(Whisper 的端到端語音轉文字翻譯功能)
   Add a timestamp to the end of the filename: 在檔名結尾加入時間戳記
   Offload sub model when finished: 完成後卸載模型
-  Advanced Parameters: 進階參數
+  Advanced parameters: 進階參數
   Enabling this will remove background music: 啟用此功能將在轉錄前，透過子模型移除背景音樂
   Enable Background Music Remover Filter: 啟用背景音樂移除濾波器
   Device: 裝置
   Save separated files to output: 將分離的檔案儲存至輸出資料夾
   Background Music Remover Filter: 背景音樂移除濾波器
+  Stem separation: 背景音樂移除濾波器
+  Word timing: 單字時間戳記
   Enable Diarization: 啟用語者分離（Diarization）
   This is only needed the first time you download the model: 只有第一次下載模型時才需要此步驟。
      如果您已經有模型，則無需輸入。若要下載模型，您必須手動前往 "https://huggingface.co/pyannote/speaker-diarization-3.1" 和 "https://huggingface.co/pyannote/segmentation-3.0" 並同意其要求
