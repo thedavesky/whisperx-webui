@@ -164,7 +164,8 @@ class DummyBlocks(DummyContext):
     def queue(self, *_, **__):
         return self
 
-    def launch(self, **__):
+    def launch(self, **kwargs):
+        DummyBlocks.launch_calls.update(kwargs)
         DummyBlocks.launch_calls["called"] = True
 
 

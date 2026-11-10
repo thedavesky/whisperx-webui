@@ -203,11 +203,7 @@ class BaseTranscriptionPipeline(ABC):
 
             if audio.ndim >= 2:
                 audio = audio.mean(axis=1)
-                if self.music_separator.audio_info is None:
-                    origin_sample_rate = 16000
-                else:
-                    origin_sample_rate = self.music_separator.audio_info.sample_rate
-                audio = self.resample_audio(audio=audio, original_sample_rate=origin_sample_rate)
+            audio = self.resample_audio(audio=audio, original_sample_rate=self.music_separator.sample_rate)
 
             elapsed_time_bgm_sep = time.time() - start_time
 

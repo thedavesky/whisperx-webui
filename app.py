@@ -70,8 +70,6 @@ class App:
 
     def _build_blocks(self):
         blocks_kwargs = {}
-        if self._blocks_signature_has("theme"):
-            blocks_kwargs["theme"] = self.theme
         if self._blocks_signature_has("delete_cache"):
             blocks_kwargs["delete_cache"] = (3600, 86400)
         return gr.Blocks(**blocks_kwargs)
@@ -758,6 +756,7 @@ class App:
         self.app.queue(
             api_open=args.api_open
         ).launch(
+            theme=self.theme,
             share=args.share,
             server_name=args.server_name,
             server_port=args.server_port,

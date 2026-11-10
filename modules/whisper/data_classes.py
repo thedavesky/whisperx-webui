@@ -81,14 +81,14 @@ class DiarizationParams(BaseParams):
         default_device = defaults.get("diarization_device", device)
         if device_choices and default_device not in device_choices:
             default_device = device_choices[0]
-        compute_type_choices = available_compute_types or [cls.__fields__["compute_type"].default]
+        compute_type_choices = available_compute_types or [cls.model_fields["compute_type"].default]
         compute_type_value = defaults.get("compute_type", compute_type)
         if compute_type_value not in compute_type_choices:
             compute_type_value = compute_type_choices[0]
         return [
             gr.Checkbox(
                 label=_("Enable Diarization"),
-                value=defaults.get("is_diarize", cls.__fields__["is_diarize"].default),
+                value=defaults.get("is_diarize", cls.model_fields["is_diarize"].default),
             ),
             gr.Dropdown(
                 label=_("Device"),
@@ -103,17 +103,17 @@ class DiarizationParams(BaseParams):
             ),
             gr.Textbox(
                 label=_("HuggingFace Token"),
-                value=defaults.get("hf_token", cls.__fields__["hf_token"].default),
+                value=defaults.get("hf_token", cls.model_fields["hf_token"].default),
                 info=_("This is only needed the first time you download the model")
             ),
             gr.Checkbox(
                 label=_("Tag Words With Speaker Labels"),
-                value=defaults.get("assign_word_speakers", cls.__fields__["assign_word_speakers"].default),
+                value=defaults.get("assign_word_speakers", cls.model_fields["assign_word_speakers"].default),
                 info=_("Add diarization speaker tags to each aligned word"),
             ),
             gr.Checkbox(
                 label=_("Fallback to Nearest Speaker When No Overlap"),
-                value=defaults.get("fill_nearest_speaker", cls.__fields__["fill_nearest_speaker"].default),
+                value=defaults.get("fill_nearest_speaker", cls.model_fields["fill_nearest_speaker"].default),
                 info=_("Use the closest diarization segment when a word has no overlap"),
             )
         ]
@@ -151,7 +151,7 @@ class BGMSeparationParams(BaseParams):
         return [
             gr.Checkbox(
                 label=_("Enable Background Music Remover Filter"),
-                value=defaults.get("is_separate_bgm", cls.__fields__["is_separate_bgm"].default),
+                value=defaults.get("is_separate_bgm", cls.model_fields["is_separate_bgm"].default),
                 interactive=True,
                 info=_("Enabling this will remove background music")
             ),
@@ -159,7 +159,7 @@ class BGMSeparationParams(BaseParams):
                 label=_("Model"),
                 choices=["UVR-MDX-NET-Inst_HQ_4",
                          "UVR-MDX-NET-Inst_3"] if available_models is None else available_models,
-                value=defaults.get("uvr_model_size", cls.__fields__["uvr_model_size"].default),
+                value=defaults.get("uvr_model_size", cls.model_fields["uvr_model_size"].default),
             ),
             gr.Dropdown(
                 label=_("Device"),
@@ -168,13 +168,13 @@ class BGMSeparationParams(BaseParams):
             ),
             gr.Number(
                 label="Segment Size",
-                value=defaults.get("segment_size", cls.__fields__["segment_size"].default),
+                value=defaults.get("segment_size", cls.model_fields["segment_size"].default),
                 precision=0,
                 info="Segment size for UVR model"
             ),
             gr.Checkbox(
                 label=_("Save separated files to output"),
-                value=defaults.get("save_file", cls.__fields__["save_file"].default),
+                value=defaults.get("save_file", cls.model_fields["save_file"].default),
             )
         ]
 
@@ -343,7 +343,7 @@ class WhisperParams(BaseParams):
                 gr.Dropdown(
                     label=_("Model"),
                     choices=available_models,
-                    value=defaults.get("model_size", cls.__fields__["model_size"].default),
+                    value=defaults.get("model_size", cls.model_fields["model_size"].default),
                 ),
                 gr.Dropdown(
                     label=_("Language"),
@@ -352,7 +352,7 @@ class WhisperParams(BaseParams):
                 ),
                 gr.Checkbox(
                     label=_("Translate to English?"),
-                    value=defaults.get("is_translate", cls.__fields__["is_translate"].default),
+                    value=defaults.get("is_translate", cls.model_fields["is_translate"].default),
                 ),
             ]
 
@@ -371,7 +371,7 @@ class WhisperParams(BaseParams):
         )
         beam_size_number = gr.Number(
             label="Beam Size",
-            value=defaults.get("beam_size", cls.__fields__["beam_size"].default),
+            value=defaults.get("beam_size", cls.model_fields["beam_size"].default),
             precision=0,
             info="Beam size for decoding"
         )
@@ -381,7 +381,7 @@ class WhisperParams(BaseParams):
             compute_type_dropdown,
             gr.Number(
                 label="Patience",
-                value=defaults.get("patience", cls.__fields__["patience"].default),
+                value=defaults.get("patience", cls.model_fields["patience"].default),
                 info="Beam search patience factor"
             ),
             gr.Textbox(
@@ -391,7 +391,7 @@ class WhisperParams(BaseParams):
             ),
             gr.Number(
                 label="Length Penalty",
-                value=defaults.get("length_penalty", cls.__fields__["length_penalty"].default),
+                value=defaults.get("length_penalty", cls.model_fields["length_penalty"].default),
                 info="Exponential length penalty"
             ),
             gr.Textbox(
@@ -401,7 +401,7 @@ class WhisperParams(BaseParams):
             ),
             gr.Checkbox(
                 label="Suppress Blank",
-                value=defaults.get("suppress_blank", cls.__fields__["suppress_blank"].default),
+                value=defaults.get("suppress_blank", cls.model_fields["suppress_blank"].default),
                 info="Suppress blank outputs at start of sampling"
             ),
             gr.Textbox(
@@ -411,7 +411,7 @@ class WhisperParams(BaseParams):
             ),
             gr.Checkbox(
                 label="Word Timestamps",
-                value=defaults.get("word_timestamps", cls.__fields__["word_timestamps"].default),
+                value=defaults.get("word_timestamps", cls.model_fields["word_timestamps"].default),
                 info="Extract word-level timestamps using WhisperX forced alignment"
             ),
         ]
@@ -420,7 +420,7 @@ class WhisperParams(BaseParams):
             inputs += [
                 gr.Number(
                     label="Chunk Length (s)",
-                    value=defaults.get("chunk_length", cls.__fields__["chunk_length"].default),
+                    value=defaults.get("chunk_length", cls.model_fields["chunk_length"].default),
                     precision=0,
                     info="Length of audio segments in seconds",
                 ),
@@ -431,7 +431,7 @@ class WhisperParams(BaseParams):
                 ),
                 gr.Number(
                     label="Batch Size",
-                    value=defaults.get("batch_size", cls.__fields__["batch_size"].default),
+                    value=defaults.get("batch_size", cls.model_fields["batch_size"].default),
                     precision=0,
                     info="Batch size for processing",
                 ),
@@ -461,7 +461,7 @@ class WhisperParams(BaseParams):
                     label=_("Show Confidence Scores"),
                     value=defaults.get(
                         "show_confidence",
-                        cls.__fields__["show_confidence"].default,
+                        cls.model_fields["show_confidence"].default,
                     ),
                     info=_("Append confidence values to segment and word outputs"),
                 ),

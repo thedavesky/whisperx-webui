@@ -11,14 +11,14 @@ from datetime import datetime
 import traceback
 
 from modules.utils.paths import DEFAULT_PARAMETERS_CONFIG_PATH, UVR_MODELS_DIR, UVR_OUTPUT_DIR
-from modules.utils.files_manager import load_yaml, save_yaml, is_video
-from modules.utils.audio_loader import load_audio
+from modules.utils.files_manager import load_yaml, save_yaml
 from modules.utils.inference_process import InferenceProcess, WorkerError, probe_metadata
 from modules.utils.logger import get_logger
 
 logger = get_logger()
 
 UVR_AVAILABLE_MODELS = ["UVR-MDX-NET-Inst_HQ_4", "UVR-MDX-NET-Inst_3"]
+UVR_SAMPLE_RATE = 44100
 
 try:
     from uvr.models import MDX, Demucs, VrNetwork, MDXC
@@ -43,8 +43,8 @@ class MusicSeparatorEngine:
         vocals_output_dir = os.path.join(self.output_dir, "vocals")
         os.makedirs(instrumental_output_dir, exist_ok=True)
         os.makedirs(vocals_output_dir, exist_ok=True)
-        self.audio_info = None
         self.available_models = UVR_AVAILABLE_MODELS
+        self.sample_rate = UVR_SAMPLE_RATE
         self.default_model = self.available_models[0]
         self.current_model_size = self.default_model
         self.model_config = {
@@ -105,18 +105,28 @@ class MusicSeparatorEngine:
         """
         if isinstance(audio, str):
             output_filename, ext = os.path.basename(audio), ".wav"
-            output_filename, orig_ext = os.path.splitext(output_filename)
+            output_filename, _ = os.path.splitext(output_filename)
 
-            if is_video(audio):
-                audio = load_audio(audio)
-                sample_rate = 16000
-            else:
-                self.audio_info = torchaudio.info(audio)
-                sample_rate = self.audio_info.sample_rate
+            waveform, origin_sample_rate = torchaudio.load(audio)
+            waveform = waveform.to(torch.float32)
         else:
             timestamp = datetime.now().strftime("%m%d%H%M%S")
             output_filename, ext = f"UVR-{timestamp}", ".wav"
-            sample_rate = 16000
+            waveform = torch.from_numpy(np.asarray(audio, dtype=np.float32))
+            origin_sample_rate = 16000
+            if waveform.ndim == 1:
+                waveform = waveform.unsqueeze(0)
+            elif waveform.shape[0] > waveform.shape[1] and waveform.shape[1] <= 2:
+                waveform = waveform.T
+
+        if waveform.numel() == 0:
+            raise ValueError(f"The file {output_filename} does not contain any audio samples.")
+        if waveform.ndim != 2 or waveform.shape[0] > 2:
+            raise ValueError(f"Unsupported audio shape {tuple(waveform.shape)}; expected 1 or 2 channels")
+        if waveform.shape[0] == 1:
+            waveform = waveform.repeat(2, 1)
+        if origin_sample_rate != UVR_SAMPLE_RATE:
+            waveform = torchaudio.transforms.Resample(origin_sample_rate, UVR_SAMPLE_RATE)(waveform)
 
         model_config = {
             "segment": segment_size,
@@ -126,7 +136,6 @@ class MusicSeparatorEngine:
         if (self.model is None or
                 self.current_model_size != model_name or
                 self.model_config != model_config or
-                self.model.sample_rate != sample_rate or
                 self.device != device):
             progress(0, desc="Initializing UVR Model..")
             self.update_model(
@@ -134,19 +143,18 @@ class MusicSeparatorEngine:
                 device=device,
                 segment_size=segment_size
             )
-            self.model.sample_rate = sample_rate
 
         progress(0, desc="Separating background music from the audio.. "
                          "(It will only display 0% until the job is complete.) ")
-        result = self.model(audio)
+        result = self.model(waveform.numpy())
         instrumental, vocals = result["instrumental"].T, result["vocals"].T
 
         file_paths = []
         if save_file:
             instrumental_output_path = os.path.join(self.output_dir, "instrumental", f"{output_filename}-instrumental{ext}")
             vocals_output_path = os.path.join(self.output_dir, "vocals", f"{output_filename}-vocals{ext}")
-            sf.write(instrumental_output_path, instrumental, sample_rate, format="WAV")
-            sf.write(vocals_output_path, vocals, sample_rate, format="WAV")
+            sf.write(instrumental_output_path, instrumental, UVR_SAMPLE_RATE, format="WAV")
+            sf.write(vocals_output_path, vocals, UVR_SAMPLE_RATE, format="WAV")
             file_paths += [instrumental_output_path, vocals_output_path]
 
         return instrumental, vocals, file_paths
@@ -174,7 +182,6 @@ class MusicSeparatorEngine:
             torch.cuda.empty_cache()
         if hasattr(torch, "xpu") and torch.xpu.is_initialized():
             torch.xpu.empty_cache()
-        self.audio_info = None
 
     @staticmethod
     def cache_parameters(model_size: str,

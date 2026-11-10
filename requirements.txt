@@ -1,13 +1,12 @@
---extra-index-url https://download.pytorch.org/whl/cu126
+--extra-index-url https://download.pytorch.org/whl/cu128
 
-dotenv
 torch
-torchaudio==2.7.1
-numpy<2.3
+torchaudio==2.8.0
+numpy
 faster-whisper
 ctranslate2
-transformers
-gradio>=5.0,<6.0
+transformers<5.0
+gradio>=6.0,<6.18
 gradio-i18n
 pytubefix
 ruamel.yaml
@@ -15,6 +14,8 @@ sqlmodel
 pyannote.audio
 whisperx
 jiwer
-onnxruntime-gpu
+onnxruntime-gpu<1.27
+av>=11,<19
+audioread
 git+https://github.com/jhj0517/ultimatevocalremover_api.git
 git+https://github.com/jhj0517/pyrubberband.git

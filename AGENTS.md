@@ -16,7 +16,7 @@ Build, Test, and Development Commands
 
 Coding Style & Naming Conventions
 
-- Target Python 3.10+ semantics, keeping modules import-safe for synchronous execution. Use 4-space indentation, snake_case for variables/functions, and PascalCase for classes and Pydantic models.
+- Target Python 3.12 semantics, keeping modules import-safe for synchronous execution. Use 4-space indentation, snake_case for variables/functions, and PascalCase for classes and Pydantic models.
 - Prefer dependency injection (passing models, devices, or configuration objects) over module-level singletons. Constants should be UPPER_SNAKE_CASE.
 - Keep Gradio component construction declarative and colocate callback helpers near the UI definition in `app.py`. For reusable utilities, expose a concise `__all__` when the module is meant to be imported elsewhere.
 - Rely on Black for formatting to avoid churn; do not mix tabs and spaces. Add type hints to new functions and favour `dataclasses` or Pydantic models for structured data.
@@ -40,7 +40,7 @@ Build, Test, and Development Commands
 Create an isolated environment (python -m venv venv && source venv/bin/activate) and install dependencies with pip install -r requirements.txt for the web UI or pip install -r backend/requirements-backend.txt for the API service. Run the UI locally using bash start-webui.sh and launch the backend with uvicorn backend.main:app --reload. Execute the automated suite via pytest -q from the repository root; focus on a specific feature with pytest tests/test_transcription.py::test_basic_transcription. Use npm install && npm run build only when working inside frontend assets bundled in modules/ui/ (rare).
 Coding Style & Naming Conventions
 
-Target Python 3.10–3.12 semantics, using type hints and dataclasses where appropriate while preserving compatibility with synchronous Gradio callbacks. Follow PEP 8 with 4-space indentation, snake_case for functions/variables, and PascalCase for classes. Keep configuration keys uppercase with underscores and prefer dependency injection (passing model/device handles) to module-level globals. Format code with black and ensure imports stay sorted with isort; avoid committing files that are not auto-formatted. Expose intended public helpers via __all__ when a module is meant for reuse.
+Target Python 3.12 semantics, using type hints and dataclasses where appropriate while preserving compatibility with synchronous Gradio callbacks. Follow PEP 8 with 4-space indentation, snake_case for functions/variables, and PascalCase for classes. Keep configuration keys uppercase with underscores and prefer dependency injection (passing model/device handles) to module-level globals. Format code with black and ensure imports stay sorted with isort; avoid committing files that are not auto-formatted. Expose intended public helpers via __all__ when a module is meant for reuse.
 Testing Guidelines
 
 Place new regression or smoke tests inside tests/ mirroring the structure of the module under test (e.g., tests/test_diarization.py for modules/whisper/diarize pipelines). Name files test_<feature>.py and use descriptive function names like test_handles_empty_segments. Mock external services (Hugging Face, DeepL, YouTube) using pytest-mock or monkeypatch to keep the suite offline. Run pytest -q and capture any expected skips with pytest.mark.skipif. Update fixtures in tests/test_srt.srt and tests/test_vtt.vtt only when behavior changes are intentional.

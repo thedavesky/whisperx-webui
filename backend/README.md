@@ -24,7 +24,7 @@ DB_URL="sqlite:///backend/records.db"
 
 2. Install dependency
 ```
-pip install -r backend/requirements-backend.txt
+pip install -U -r backend/requirements-backend.txt
 ```
 
 3. Deploy the server with `uvicorn` or whatever.

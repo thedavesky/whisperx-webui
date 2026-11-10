@@ -1,4 +1,4 @@
-FROM debian:bookworm-slim AS builder
+FROM ubuntu:24.04 AS builder
 
 RUN apt-get update && \
     apt-get install -y curl git python3 python3-pip python3-venv && \
@@ -18,7 +18,7 @@ RUN python3 -m venv venv && \
 COPY backend/ backend/
 
 
-FROM debian:bookworm-slim AS runtime
+FROM ubuntu:24.04 AS runtime
 
 RUN apt-get update && \
     apt-get install -y curl ffmpeg python3 && \
@@ -34,6 +34,6 @@ VOLUME [ "/Whisper-WebUI/outputs" ]
 VOLUME [ "/Whisper-WebUI/backend" ]
 
 ENV PATH="/Whisper-WebUI/venv/bin:$PATH"
-ENV LD_LIBRARY_PATH=/Whisper-WebUI/venv/lib64/python3.11/site-packages/nvidia/cublas/lib:/Whisper-WebUI/venv/lib64/python3.11/site-packages/nvidia/cudnn/lib
+ENV LD_LIBRARY_PATH=/Whisper-WebUI/venv/lib/python3.12/site-packages/nvidia/cublas/lib:/Whisper-WebUI/venv/lib/python3.12/site-packages/nvidia/cudnn/lib
 
 ENTRYPOINT ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -24,10 +24,9 @@ If you wish to try this on Colab, you can do it in [here](https://colab.research
   - Translate subtitle files using Facebook NLLB models
   - Translate subtitle files using DeepL API
 - Pre-processing audio input to separate BGM with [UVR](https://github.com/Anjok07/ultimatevocalremovergui). 
-- Post-processing with speaker diarization using the [pyannote](https://huggingface.co/pyannote/speaker-diarization-3.1) model.
-   - To download the pyannote model, you need to have a Huggingface token and manually accept their terms in the pages below.
-      1. https://huggingface.co/pyannote/speaker-diarization-3.1
-      2. https://huggingface.co/pyannote/segmentation-3.0
+- Post-processing with speaker diarization using the [pyannote](https://huggingface.co/pyannote/speaker-diarization-community-1) model.
+   - To download the pyannote model, you need to have a Huggingface token and manually accept their terms in the page below.
+      1. https://huggingface.co/pyannote/speaker-diarization-community-1
 - Word-level alignment and diarization powered by [WhisperX](https://github.com/m-bain/whisperX) for precise timestamps.
 - Speech segmentation is handled internally by WhisperX's built-in Pyannote VAD.
 
@@ -82,14 +81,14 @@ If needed, update the [`docker-compose.yaml`](https://github.com/chboishabba/Whi
 - ## Run Locally
 
 ### Prerequisite
-To run this WebUI, you need to have `git`, `3.10 <= python <= 3.12`, `FFmpeg`.
+To run this WebUI, you need to have `git`, `python 3.12`, `FFmpeg`.
 
 **Edit `--extra-index-url` in the [`requirements.txt`](https://github.com/chboishabba/WhisperX-WebUI/blob/master/requirements.txt) to match your device.<br>** 
-By default, the WebUI assumes you're using an Nvidia GPU and **CUDA 12.6.** If you're using Intel or another CUDA version, read the [`requirements.txt`](https://github.com/chboishabba/WhisperX-WebUI/blob/master/requirements.txt) and edit `--extra-index-url`.
+By default, the WebUI assumes you're using an Nvidia GPU and **CUDA 12.8.** If you're using Intel or another CUDA version, read the [`requirements.txt`](https://github.com/chboishabba/WhisperX-WebUI/blob/master/requirements.txt) and edit `--extra-index-url`.
 
 Please follow the links below to install the necessary software:
 - git : [https://git-scm.com/downloads](https://git-scm.com/downloads)
-- python : [https://www.python.org/downloads/](https://www.python.org/downloads/) **`3.10 ~ 3.12` is recommended.** 
+- python : [https://www.python.org/downloads/](https://www.python.org/downloads/) **`3.12` is required.**
 - FFmpeg :  [https://ffmpeg.org/download.html](https://ffmpeg.org/download.html)
 - CUDA : [https://developer.nvidia.com/cuda-downloads](https://developer.nvidia.com/cuda-downloads)
 
@@ -124,13 +123,9 @@ You can pass CLI flags directly (Linux/macOS) or via `user-start-webui.bat` (Win
 
 For the full list, run `python app.py --help` or review the wiki.
 
-### Dependency notes
-
-- `torchaudio` is pinned to 2.7.1 in [`requirements.txt`](./requirements.txt). Releases starting with 2.8 removed the `AudioMetaData` helper that our diarization pipeline imports, which triggers an `AttributeError` during transcription/diarization runs. Upgrade deliberately once the codebase stops relying on that class (or after adding a compatibility shim).
-
 # WhisperX Alignment & Diarization
 
-Whisper-WebUI now bundles [WhisperX](https://github.com/m-bain/whisperX) so you can generate accurate word-level timestamps and automatically assign speaker labels in a single pass. The Python dependencies (`whisperx`, `onnxruntime-gpu`, compatible `pyannote.audio`, and `jiwer` for ASR quality evaluation) are installed automatically when you run `pip install -r requirements.txt` or build the Docker images.
+Whisper-WebUI now bundles [WhisperX](https://github.com/m-bain/whisperX) so you can generate accurate word-level timestamps and automatically assign speaker labels in a single pass. The Python dependencies (`whisperx`, `onnxruntime-gpu`, compatible `pyannote.audio`, and `jiwer` for ASR quality evaluation) are installed automatically when you run `pip install -U -r requirements.txt` or build the Docker images.
 
 ## Hardware and model downloads
 
@@ -139,9 +134,9 @@ Whisper-WebUI now bundles [WhisperX](https://github.com/m-bain/whisperX) so you 
 
 ## Hugging Face access token
 
-The pyannote diarization models require you to accept their license and authenticate with a Hugging Face access token.
+The pyannote diarization model requires you to accept its license and authenticate with a Hugging Face access token.
 
-1. Visit the model cards for [pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1) and [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0) and accept the usage terms.
+1. Visit the model card for [pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1) and accept the usage terms.
 2. Generate a token with **read** access from your Hugging Face account settings.
 3. Provide the token to Whisper-WebUI by either:
    - Setting an environment variable before launch: `export HF_TOKEN=hf_xxx` (Linux/macOS) or `set HF_TOKEN=hf_xxx` (Windows PowerShell: `$Env:HF_TOKEN="hf_xxx"`).

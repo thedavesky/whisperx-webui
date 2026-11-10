@@ -1,6 +1,5 @@
 import gc
 import importlib
-import inspect
 import logging
 import os
 import time
@@ -10,10 +9,8 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 import gradio as gr
 import numpy as np
 import torch
-from huggingface_hub import hf_hub_download
 
 from modules.utils.audio_loader import SAMPLE_RATE, load_audio
-from modules.utils.compat import ensure_diarization_compatibility
 from modules.utils.logger import get_logger
 from modules.whisper.data_classes import DiarizationParams, Segment, WhisperParams, Word
 
@@ -22,8 +19,7 @@ try:
 except ImportError:  # pragma: no cover - handled at runtime
     whisperx = None
 
-DIARIZATION_MODEL_NAME = "pyannote/speaker-diarization-3.1"
-DIARIZATION_PIPELINE_CONFIG = "config.yaml"
+DIARIZATION_MODEL_NAME = "pyannote/speaker-diarization-community-1"
 
 logger = get_logger()
 
@@ -310,18 +306,11 @@ class WhisperXWrapper:
 
         if self._align_model is None or self._align_language != language_code:
             logger.info("Loading WhisperX alignment model for language %s", language_code)
-            align_signature = inspect.signature(whisperx.load_align_model).parameters
-            align_kwargs = {
-                "language_code": language_code,
-                "device": resolved_device,
-            }
-
-            if "model_dir" in align_signature:
-                align_kwargs["model_dir"] = self.model_dir
-            elif "download_root" in align_signature:
-                align_kwargs["download_root"] = self.model_dir
-
-            self._align_model, self._align_metadata = whisperx.load_align_model(**align_kwargs)
+            self._align_model, self._align_metadata = whisperx.load_align_model(
+                language_code=language_code,
+                device=resolved_device,
+                model_dir=self.model_dir,
+            )
             self._align_language = language_code
 
         audio_array = load_audio(audio)
@@ -335,29 +324,6 @@ class WhisperXWrapper:
         )
         return self._segments_from_dict(aligned_result.get("segments", []))
 
-    def _resolve_diarization_checkpoint(self, token: Optional[str]) -> str:
-        """Resolve the pyannote pipeline config into the configured model directory.
-
-        WhisperX's `DiarizationPipeline` accepts no cache directory, so the config is
-        downloaded here first and the local path is handed over. That keeps
-        `--diarization_model_dir` (and the `models/Diarization/` cache) working.
-        """
-        os.makedirs(self.diarization_model_dir, exist_ok=True)
-
-        if not os.listdir(self.diarization_model_dir) and not token:
-            raise RuntimeError(
-                "Failed to diarize. You need a Hugging Face token and must accept the model terms to download the diarization pipeline. "
-                "Visit https://huggingface.co/pyannote/speaker-diarization-3.1 to grant access, then provide the token."
-            )
-
-        return hf_hub_download(
-            DIARIZATION_MODEL_NAME,
-            DIARIZATION_PIPELINE_CONFIG,
-            repo_type="model",
-            cache_dir=self.diarization_model_dir,
-            token=token,
-        )
-
     def _load_diarization_pipeline(
         self,
         diarize_module: Any,
@@ -365,16 +331,22 @@ class WhisperXWrapper:
         token: Optional[str],
     ) -> Any:
         """Instantiate WhisperX's own diarization pipeline."""
-        ensure_diarization_compatibility()
-        checkpoint = self._resolve_diarization_checkpoint(token)
+        os.makedirs(self.diarization_model_dir, exist_ok=True)
+
+        if not os.listdir(self.diarization_model_dir) and not token:
+            raise RuntimeError(
+                "Failed to diarize. You need a Hugging Face token and must accept the model terms to download the diarization pipeline. "
+                f"Visit https://huggingface.co/{DIARIZATION_MODEL_NAME} to grant access, then provide the token."
+            )
 
         train_logger = logging.getLogger("speechbrain.utils.train_logger")
         train_logger.disabled = True
         try:
             return diarize_module.DiarizationPipeline(
-                model_name=checkpoint,
-                use_auth_token=token,
+                model_name=DIARIZATION_MODEL_NAME,
                 device=device,
+                token=token,
+                cache_dir=self.diarization_model_dir,
             )
         except Exception as exc:
             raise RuntimeError(

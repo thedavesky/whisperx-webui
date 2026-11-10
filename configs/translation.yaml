@@ -19,8 +19,8 @@ en:
   Enable Diarization: Enable Diarization
   This is only needed the first time you download the model: This is only needed the
     first time you download the model. If you already have models, you don't need
-    to enter. To download the model, you must manually go to "https://huggingface.co/pyannote/speaker-diarization-3.1"
-    and "https://huggingface.co/pyannote/segmentation-3.0" and agree to their requirement.
+    to enter. To download the model, you must manually go to "https://huggingface.co/pyannote/speaker-diarization-community-1"
+    and agree to their requirement.
   HuggingFace Token: HuggingFace Token
   Diarization: Diarization
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
@@ -75,8 +75,8 @@ ko:
   Word timing: 단어 타임스태프
   Enable Diarization: 화자 구분 활성화
   This is only needed the first time you download the model: 모델을 처음 다운받을 때만 토큰이 필요합니다.
-    이미 다운로드 받으신 상태라면 입력하지 않아도 됩니다. 모델을 다운 받기 위해선 "https://huggingface.co/pyannote/speaker-diarization-3.1"
-    와 "https://huggingface.co/pyannote/segmentation-3.0" 에서 먼저 사용 지침에 동의하셔야 합니다.
+    이미 다운로드 받으신 상태라면 입력하지 않아도 됩니다. 모델을 다운 받기 위해선 "https://huggingface.co/pyannote/speaker-diarization-community-1"
+    에서 먼저 사용 지침에 동의하셔야 합니다.
   HuggingFace Token: 허깅페이스 토큰
   Diarization: 화자 구분
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
@@ -132,8 +132,8 @@ ja:
   Enable Diarization: Enable Diarization
   This is only needed the first time you download the model: This is only needed the
     first time you download the model. If you already have models, you don't need
-    to enter. To download the model, you must manually go to "https://huggingface.co/pyannote/speaker-diarization-3.1"
-    and "https://huggingface.co/pyannote/segmentation-3.0" and agree to their requirement.
+    to enter. To download the model, you must manually go to "https://huggingface.co/pyannote/speaker-diarization-community-1"
+    and agree to their requirement.
   HuggingFace Token: HuggingFace Token
   Diarization: Diarization
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
@@ -190,8 +190,8 @@ es:
   Enable Diarization: Enable Diarization
   This is only needed the first time you download the model: This is only needed the
     first time you download the model. If you already have models, you don't need
-    to enter. To download the model, you must manually go to "https://huggingface.co/pyannote/speaker-diarization-3.1"
-    and "https://huggingface.co/pyannote/segmentation-3.0" and agree to their requirement.
+    to enter. To download the model, you must manually go to "https://huggingface.co/pyannote/speaker-diarization-community-1"
+    and agree to their requirement.
   HuggingFace Token: HuggingFace Token
   Diarization: Diarization
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
@@ -251,7 +251,7 @@ fr:
   This is only needed the first time you download the model: Le token n'est nécessaire
     que lors du premier téléchargement du modèle. Si vous avez déjà les modèles, vous
     n'avez pas besoin de l'entrer. Pour télécharger le modèle, vous devez aller manuellement
-    sur "https://huggingface.co/pyannote/speaker-diarization-3.1" et "https://huggingface.co/pyannote/segmentation-3.0"
+    sur "https://huggingface.co/pyannote/speaker-diarization-community-1"
     et accepter leurs conditions.
   HuggingFace Token: Token HuggingFace
   Diarization: Diarisation
@@ -311,7 +311,7 @@ de:
   This is only needed the first time you download the model: Dies ist nur erforderlich,
     wenn Sie das Modell zum ersten Mal herunterladen. Falls Sie die Modelle bereits
     besitzen, ist dies nicht nötig. Um das Modell herunterzuladen, müssen Sie manuell
-    die Seiten „https://huggingface.co/pyannote/speaker-diarization-3.1“ und „https://huggingface.co/pyannote/segmentation-3.0“
+    die Seite „https://huggingface.co/pyannote/speaker-diarization-community-1“
     besuchen und deren Anforderungen zustimmen.
   HuggingFace Token: HuggingFace-Token
   Diarization: Diarisierung
@@ -370,7 +370,7 @@ nl:
   Enable Diarization: Diarisatie inschakelen
   This is only needed the first time you download the model: Dit is alleen nodig de eerste keer dat
     je het model downloadt. Als je al modellen hebt, is dit niet nodig. Om het model te downloaden
-    kun je naar "https://huggingface.co/pyannote/speaker-diarization-3.1" en "https://huggingface.co/pyannote/segmentation-3.0" 
+    kun je naar "https://huggingface.co/pyannote/speaker-diarization-community-1"
     gaan en daar de voorwaarden accepteren.
   HuggingFace Token: HuggingFace-token
   Diarization: Diarisatie
@@ -425,7 +425,7 @@ zh:
   Word timing: 单词时间戳
   Enable Diarization: 进行说话人分离处理
   This is only needed the first time you download the model: 当且仅当您首次下载模型时才需要在此输入令牌，如果您已有模型则无需输入。
-    要下载模型，您必须先在"https://huggingface.co/pyannote/speaker-diarization-3.1" 与 "https://huggingface.co/pyannote/segmentation-3.0"
+    要下载模型，您必须先在"https://huggingface.co/pyannote/speaker-diarization-community-1"
     上同意他们的使用条款。
   HuggingFace Token: HuggingFace令牌
   Diarization: 说话人分离设置
@@ -482,8 +482,8 @@ uk:
   Enable Diarization: Увімкнути діаризацію
   This is only needed the first time you download the model: Це потрібно лише при
     першому завантаженні моделі. Якщо у вас вже є моделі, вводити не потрібно. Щоб
-    завантажити модель, потрібно вручну перейти на "https://huggingface.co/pyannote/speaker-diarization-3.1"
-    та "https://huggingface.co/pyannote/segmentation-3.0" і погодитися з їхніми вимогами.
+    завантажити модель, потрібно вручну перейти на "https://huggingface.co/pyannote/speaker-diarization-community-1"
+    і погодитися з їхніми вимогами.
   HuggingFace Token: Токен HuggingFace
   Diarization: Діаризація
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
@@ -542,8 +542,8 @@ ru:
   Enable Diarization: Включить диаризацию
   This is only needed the first time you download the model: Это нужно только при
     первом скачивании модели. Если у вас уже есть модели, вводить не нужно. Чтобы
-    скачать модель, нужно вручную перейти на "https://huggingface.co/pyannote/speaker-diarization-3.1"
-    и "https://huggingface.co/pyannote/segmentation-3.0" и согласиться с их требованиями.
+    скачать модель, нужно вручную перейти на "https://huggingface.co/pyannote/speaker-diarization-community-1"
+    и согласиться с их требованиями.
   HuggingFace Token: Токен HuggingFace
   Diarization: Диаризация
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
@@ -601,7 +601,7 @@ tr:
   Enable Diarization: Konuşmacı Ayrımını Etkinleştir
   This is only needed the first time you download the model: Bu, modeli ilk kez indirirken
     gereklidir. Zaten modelleriniz varsa girmenize gerek yok. Modeli indirmek için
-    "https://huggingface.co/pyannote/speaker-diarization-3.1" ve "https://huggingface.co/pyannote/segmentation-3.0"
+    "https://huggingface.co/pyannote/speaker-diarization-community-1"
     adreslerine gidip gereksinimlerini kabul etmeniz gerekiyor
   HuggingFace Token: HuggingFace Anahtarı
   Diarization: Konuşmacı Ayrımı
@@ -660,8 +660,8 @@ eu:
   Enable Diarization: Aktibatu Diarizazioa
   This is only needed the first time you download the model: Soilik beharrezkoa eredua
     deskargatzen den lehen aldian. Jadanik eredu hauek deskargatuta, ez duzu berriz
-    ere sartu behar. Eredua deskargatzeko, joan hurrengo esteketara "https://huggingface.co/pyannote/speaker-diarization-3.1"
-    eta "https://huggingface.co/pyannote/segmentation-3.0" eta onartu haien erabilpen-baldintzak.
+    ere sartu behar. Eredua deskargatzeko, joan hurrengo esteketara "https://huggingface.co/pyannote/speaker-diarization-community-1"
+    eta onartu haien erabilpen-baldintzak.
   HuggingFace Token: HuggingFace Tokena
   Diarization: Diarizazioa
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags
@@ -767,7 +767,7 @@ zh-TW:
   Word timing: 單字時間戳記
   Enable Diarization: 啟用語者分離（Diarization）
   This is only needed the first time you download the model: 只有第一次下載模型時才需要此步驟。
-     如果您已經有模型，則無需輸入。若要下載模型，您必須手動前往 "https://huggingface.co/pyannote/speaker-diarization-3.1" 和 "https://huggingface.co/pyannote/segmentation-3.0" 並同意其要求
+     如果您已經有模型，則無需輸入。若要下載模型，您必須手動前往 "https://huggingface.co/pyannote/speaker-diarization-community-1" 並同意其要求
   HuggingFace Token: HuggingFace 權杖（Token）
   Diarization: 語者分離
   WhisperX Alignment & Speaker Tags: WhisperX Alignment & Speaker Tags

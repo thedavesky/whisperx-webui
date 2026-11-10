@@ -9,7 +9,7 @@ echo checked the venv folder. now installing requirements..
 call "%~dp0\venv\scripts\activate"
 
 python -m pip install -U pip
-pip install -r requirements.txt
+pip install -U -r requirements.txt
 
 if errorlevel 1 (
     echo.
