@@ -70,7 +70,7 @@ def run_asr_pipeline(
         "SRT",
         False,
         gr.Progress(),
-        hparams,
+        *hparams.to_list(),
     )
     subtitle = read_file(file_path).split("\n")
     wer = calculate_wer(answer, subtitle[2].strip().replace(",", "").replace(".", ""))

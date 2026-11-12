@@ -5,27 +5,29 @@ from fastapi import (
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
-import time
 import threading
 
 from backend.db.db_instance import init_db
+from backend.db.task.dao import reconcile_interrupted_tasks
 from backend.routers.transcription.router import transcription_router, get_pipeline
 from backend.routers.bgm_separation.router import get_bgm_separation_inferencer, bgm_separation_router
 from backend.routers.task.router import task_router
 from backend.common.config_loader import read_env, load_server_config
 from backend.common.cache_manager import cleanup_old_files
+from modules.utils.logger import get_logger
 from modules.utils.paths import SERVER_CONFIG_PATH, BACKEND_CACHE_DIR
 
 
-def clean_cache_thread(ttl: int, frequency: int) -> threading.Thread:
-    def clean_cache(_ttl: int, _frequency: int):
-        while True:
-            cleanup_old_files(cache_dir=BACKEND_CACHE_DIR, ttl=_ttl)
-            time.sleep(_frequency)
+logger = get_logger()
+
+
+def clean_cache_thread(ttl: int, frequency: int, stop: threading.Event) -> threading.Thread:
+    def clean_cache():
+        while not stop.wait(frequency):
+            cleanup_old_files(cache_dir=BACKEND_CACHE_DIR, ttl=ttl)
 
     return threading.Thread(
         target=clean_cache,
-        args=(ttl, frequency),
         daemon=True
     )
 
@@ -37,19 +39,35 @@ async def lifespan(app: FastAPI):
     read_env("DB_URL")  # Place .env file into /configs/.env
     init_db()
 
+    # Jobs run in this process, so tasks from an earlier process can never resume.
+    reconcile_interrupted_tasks()
+
     # Inferencer initialization
     transcription_pipeline = get_pipeline()
     bgm_separation_inferencer = get_bgm_separation_inferencer()
 
     # Thread initialization
-    cache_thread = clean_cache_thread(server_config["cache"]["ttl"], server_config["cache"]["frequency"])
+    stop_cache = threading.Event()
+    cache_thread = clean_cache_thread(server_config["cache"]["ttl"], server_config["cache"]["frequency"], stop_cache)
     cache_thread.start()
 
     yield
 
-    # Release VRAM when server shutdown
-    transcription_pipeline = None
-    bgm_separation_inferencer = None
+    # Release VRAM, the worker processes and the sweep thread when the server shuts down.
+    stop_cache.set()
+    cache_thread.join(timeout=5)
+    if cache_thread.is_alive():
+        logger.warning("Cache cleanup thread is still running after 5s; it is a daemon thread.")
+
+    for inferencer in (transcription_pipeline, bgm_separation_inferencer):
+        try:
+            inferencer.offload()
+        except Exception as e:
+            logger.error(f"Failed to offload {type(inferencer).__name__} on shutdown: {e}")
+
+    # Drop the cached instances so a restarted app in the same process rebuilds them.
+    get_pipeline.cache_clear()
+    get_bgm_separation_inferencer.cache_clear()
 
 
 app = FastAPI(

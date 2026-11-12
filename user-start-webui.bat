@@ -15,25 +15,31 @@ set DIARIZATION_MODEL_DIR=
 
 
 if not "%SERVER_NAME%"=="" (
-    set SERVER_NAME_ARG=--server_name %SERVER_NAME%
+    set SERVER_NAME_ARG=--server_name "%SERVER_NAME%"
 )
 if not "%SERVER_PORT%"=="" (
     set SERVER_PORT_ARG=--server_port %SERVER_PORT%
 )
 if not "%USERNAME%"=="" (
-    set USERNAME_ARG=--username %USERNAME%
+    set USERNAME_ARG=--username "%USERNAME%"
 )
 if not "%PASSWORD%"=="" (
-    set PASSWORD_ARG=--password %PASSWORD%
+    set PASSWORD_ARG=--password "%PASSWORD%"
 )
 if /I "%SHARE%"=="true" (
-    set SHARE_ARG=--share
+    set SHARE_ARG=--share true
+)
+if /I "%SHARE%"=="false" (
+    set SHARE_ARG=--share false
 )
 if not "%THEME%"=="" (
-    set THEME_ARG=--theme %THEME%
+    set THEME_ARG=--theme "%THEME%"
 )
 if /I "%API_OPEN%"=="true" (
-    set API_OPEN=--api_open
+    set API_OPEN_ARG=--api_open true
+)
+if /I "%API_OPEN%"=="false" (
+    set API_OPEN_ARG=--api_open false
 )
 if not "%WHISPER_MODEL_DIR%"=="" (
     set WHISPER_MODEL_DIR_ARG=--whisper_model_dir "%WHISPER_MODEL_DIR%"
@@ -46,5 +52,7 @@ if not "%DIARIZATION_MODEL_DIR%"=="" (
 )
 
 :: Call the original .bat script with cli arguments
-start-webui.bat %SERVER_NAME_ARG% %SERVER_PORT_ARG% %USERNAME_ARG% %PASSWORD_ARG% %SHARE_ARG% %THEME_ARG% %API_OPEN% %WHISPER_MODEL_DIR_ARG% %WHISPERX_MODEL_DIR_ARG% %DIARIZATION_MODEL_DIR_ARG%
+call "%~dp0start-webui.bat" %SERVER_NAME_ARG% %SERVER_PORT_ARG% %USERNAME_ARG% %PASSWORD_ARG% %SHARE_ARG% %THEME_ARG% %API_OPEN_ARG% %WHISPER_MODEL_DIR_ARG% %WHISPERX_MODEL_DIR_ARG% %DIARIZATION_MODEL_DIR_ARG%
+set APP_EXIT=%ERRORLEVEL%
 pause
+exit /b %APP_EXIT%

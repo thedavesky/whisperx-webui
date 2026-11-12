@@ -39,7 +39,7 @@ whisper:
 diarization:
   is_diarize: false
   diarization_device: cuda
-  compute_type: float32
+  diarization_compute_type: float32
   hf_token: ''
   assign_word_speakers: false
   fill_nearest_speaker: false

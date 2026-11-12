@@ -4,17 +4,17 @@ import gradio as gr
 import torchaudio
 import torch
 from faster_whisper import available_models
-from transformers.models.whisper.tokenization_whisper import LANGUAGES, TO_LANGUAGE_CODE
+from transformers.models.whisper.tokenization_whisper import LANGUAGES
 from abc import ABC, abstractmethod
 from typing import BinaryIO, Optional, Union, Tuple, List, Callable
 import threading
 import numpy as np
 from datetime import datetime
 import gc
-from copy import deepcopy
 import time
 
 from modules.uvr.music_separator import MusicSeparatorEngine
+from modules.utils import audio_loader
 from modules.utils.paths import (WHISPER_MODELS_DIR, DIARIZATION_MODELS_DIR, OUTPUT_DIR, DEFAULT_PARAMETERS_CONFIG_PATH,
                                  UVR_MODELS_DIR)
 from modules.utils.constants import *
@@ -52,7 +52,7 @@ class BaseTranscriptionPipeline(ABC):
         self.current_model_size = None
         self.available_models = available_models()
         self.available_langs = sorted(LANGUAGES.values())
-        self.device = self.get_device()
+        self.device = self.get_asr_device()
         self.available_compute_types = self.get_available_compute_type()
         self.current_compute_type = self.get_compute_type()
         self.whisperx_wrapper: Optional[WhisperXWrapper] = None
@@ -183,8 +183,7 @@ class BaseTranscriptionPipeline(ABC):
 
         self._check_cancelled()
 
-        if not validate_audio(audio):
-            return [Segment()], 0
+        validate_audio(audio)
 
         params = TranscriptionPipelineParams.from_list(list(pipeline_params))
         params = self.validate_gradio_values(params)
@@ -207,72 +206,56 @@ class BaseTranscriptionPipeline(ABC):
 
             elapsed_time_bgm_sep = time.time() - start_time
 
-        self._check_cancelled()
-
-        # === THE BULLETPROOF AUDIO LOADER ===
-        # Ensure audio is loaded and definitively converted to a 1D, 16kHz numpy array
-        if isinstance(audio, (str, bytes)):
-            # Load from file path using torchaudio
-            waveform, sample_rate = torchaudio.load(audio)
-            # Force mono by averaging channels if stereo
-            if waveform.shape[0] > 1:
-                waveform = torch.mean(waveform, dim=0, keepdim=True)
-            # Resample to 16000Hz (Whisper requirement)
-            if sample_rate != 16000:
-                resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=16000)
-                waveform = resampler(waveform)
-            # Convert to 1D numpy array
-            audio = waveform.squeeze().numpy()
-            if audio.ndim > 1:
-                audio = audio.flatten()
-            
-        elif isinstance(audio, np.ndarray):
-            # Fallback for Gradio Mic / UVR outputs
-            if audio.ndim > 1:
-                # Average channels
-                audio = audio.mean(axis=1) if audio.shape[1] < audio.shape[0] else audio.mean(axis=0)
-            audio = audio.flatten()
-            
-        # Make a copy of the audio so diarization can run on the original signal later
-        origin_audio = deepcopy(audio)
-        # ====================================
-
-        use_whisperx = whisper_params.word_timestamps
-        whisperx_language = None
+            # Vocals are prepared, so the separation model is no longer needed.
+            self.music_separator.offload()
 
         self._check_cancelled()
 
-        if use_whisperx:
-            self._ensure_whisperx_wrapper()
-            result, whisperx_language, elapsed_time_transcription = self.whisperx_wrapper.transcribe(
-                audio,
-                whisper_params,
-                self.device,
-                progress,
-                progress_callback,
-            )
-        else:
-            result, elapsed_time_transcription = self.transcribe(
-                audio,
-                progress,
-                progress_callback,
-                *whisper_params.to_list()
-            )
+        # Normalize every input to a mono 16 kHz float32 waveform in [-1.0, 1.0]
+        try:
+            audio = audio_loader.load_audio(audio)
+        except RuntimeError as e:
+            # ffmpeg (or the loader) rejected the input; show it in the UI.
+            raise gr.Error(str(e))
+        # Diarization runs on the same normalized waveform later on.
+        origin_audio = audio
 
         self._check_cancelled()
 
-        if use_whisperx:
+        # One ASR path for both word-timing modes: WhisperX transcribes, and forced
+        # alignment is only added when word timestamps are requested.
+        wrapper = self._ensure_whisperx_wrapper()
+        result, detected_language, elapsed_time_transcription, asr_device = wrapper.transcribe(
+            audio,
+            whisper_params,
+            self.device,
+            progress,
+            progress_callback,
+        )
+
+        self._check_cancelled()
+
+        if whisper_params.word_timestamps:
+            # The ASR model is no longer needed; free it before the aligner allocates.
+            wrapper.offload_asr()
             progress(0.95, desc="Aligning with WhisperX..")
-            result = self.whisperx_wrapper.align(
+            result = wrapper.align(
                 segments=result,
-                language=whisperx_language,
+                language=detected_language,
                 audio=origin_audio,
-                device=self.device,
+                device=asr_device,
+            )
+            result = self._apply_confidence_threshold(
+                result,
+                whisper_params.whisperx_confidence_threshold,
             )
 
         self._check_cancelled()
 
         if diarization_params.is_diarize:
+            if whisper_params.word_timestamps:
+                # The aligner is done; diarization needs its own model.
+                wrapper.offload_alignment()
             progress(0.99, desc="Diarizing speakers..")
             result = self._diarize(
                 audio=origin_audio,
@@ -290,7 +273,6 @@ class BaseTranscriptionPipeline(ABC):
 
         if not result:
             logger.info(f"Whisper did not detected any speech segments in the audio.")
-            result = [Segment()]
 
         progress(1.0, desc="Finished.")
         total_elapsed_time = time.time() - start_time
@@ -304,6 +286,25 @@ class BaseTranscriptionPipeline(ABC):
                 diarization_model_dir=self.diarization_model_dir,
             )
         return self.whisperx_wrapper
+
+    @staticmethod
+    def _apply_confidence_threshold(segments: List[Segment], threshold: float) -> List[Segment]:
+        """Drop aligned words below `threshold` from the word-level detail.
+
+        Segment text is never edited: if every word of a segment falls below the
+        threshold its word list becomes empty, so writers/exporters fall back to
+        the segment-level rendering instead of losing the transcript.
+        """
+        if not threshold:
+            return segments
+        for segment in segments:
+            if not segment.words:
+                continue
+            segment.words = [
+                word for word in segment.words
+                if word.probability is not None and word.probability >= threshold
+            ]
+        return segments
 
     def _diarize(
         self,
@@ -451,38 +452,50 @@ class BaseTranscriptionPipeline(ABC):
                 if input_folder_path:
                     files = get_media_files(input_folder_path, include_sub_directory=include_subdirectory)
 
+                if not files:
+                    raise gr.Error("No audio files selected. Upload files or set an input folder first.")
+
                 files_info = {}
                 for file in self._iter_file_paths(files):
                     self._check_cancelled()
-                    transcribed_segments, time_for_task = self._run_pipeline(
-                        file,
-                        progress,
-                        file_format,
-                        add_timestamp,
-                        None,
-                        *pipeline_params.to_list(),
-                    )
-
                     file_name, file_ext = os.path.splitext(os.path.basename(file))
-                    if save_same_dir and input_folder_path:
-                        output_dir = os.path.dirname(file)
+                    try:
+                        transcribed_segments, time_for_task = self._run_pipeline(
+                            file,
+                            progress,
+                            file_format,
+                            add_timestamp,
+                            None,
+                            *pipeline_params.to_list(),
+                        )
+
+                        if save_same_dir and input_folder_path:
+                            output_dir = os.path.dirname(file)
+                            subtitle, file_path = generate_file(
+                                output_dir=output_dir,
+                                output_file_name=file_name,
+                                output_format=file_format,
+                                result=transcribed_segments,
+                                add_timestamp=add_timestamp,
+                                options=writer_options,
+                            )
+
                         subtitle, file_path = generate_file(
-                            output_dir=output_dir,
+                            output_dir=self.output_dir,
                             output_file_name=file_name,
                             output_format=file_format,
                             result=transcribed_segments,
                             add_timestamp=add_timestamp,
                             options=writer_options,
                         )
+                    except Exception as e:
+                        if self.cancel_event and self.cancel_event.is_set():
+                            raise
+                        # Keep going with the rest of the batch, but report this file.
+                        logger.error(f"Failed to transcribe {file}: {e}")
+                        files_info[file_name] = {"error": str(e)}
+                        continue
 
-                    subtitle, file_path = generate_file(
-                        output_dir=self.output_dir,
-                        output_file_name=file_name,
-                        output_format=file_format,
-                        result=transcribed_segments,
-                        add_timestamp=add_timestamp,
-                        options=writer_options,
-                    )
                     include_word_details = (
                         params.whisper.word_timestamps and
                         any(getattr(seg, "words", None) for seg in transcribed_segments)
@@ -497,24 +510,33 @@ class BaseTranscriptionPipeline(ABC):
                     subtitle_text = read_file(file_path)
                     files_info[file_name] = {
                         "subtitle": subtitle_text,
-                        "preview": preview,
+                        "preview": preview or "(no speech detected)",
                         "time_for_task": time_for_task,
                         "path": file_path
                     }
 
-                total_time = sum(info["time_for_task"] for info in files_info.values())
+                if not files_info:
+                    raise gr.Error("No files could be transcribed.")
+
+                total_time = sum(info.get("time_for_task", 0) for info in files_info.values())
 
                 total_result = ''
                 for file_name, info in files_info.items():
                     total_result += '------------------------------------\n'
                     total_result += f'{file_name}\n\n'
+                    if "error" in info:
+                        total_result += f'Failed: {info["error"]}\n'
+                        continue
                     preview = info.get("preview") or info.get("subtitle")
                     total_result += f'{preview}\n'
 
-                result_str = (
-                    f"Done in {self.format_time(total_time)}! Subtitle is in the outputs folder.\n\n{total_result}"
-                )
-                result_file_path = [info['path'] for info in files_info.values()]
+                failed = [name for name, info in files_info.items() if "error" in info]
+                if failed:
+                    header = f"{len(failed)} of {len(files_info)} file(s) failed. Done in {self.format_time(total_time)}!"
+                else:
+                    header = f"Done in {self.format_time(total_time)}! Subtitle is in the outputs folder."
+                result_str = f"{header}\n\n{total_result}"
+                result_file_path = [info['path'] for info in files_info.values() if 'path' in info]
 
                 return result_str, result_file_path
 
@@ -607,6 +629,7 @@ class BaseTranscriptionPipeline(ABC):
             raise RuntimeError(f"Error transcribing mic: {e}") from e
 
     def transcribe_youtube(
+                           self,
                            youtube_link: str,
                            file_format: str = "SRT",
                            add_timestamp: bool = True,
@@ -762,6 +785,11 @@ class BaseTranscriptionPipeline(ABC):
         return time_str.strip()
 
     @staticmethod
+    def get_asr_device() -> str:
+        """ASR runs on CTranslate2, which supports CUDA and CPU only."""
+        return "cuda" if torch.cuda.is_available() else "cpu"
+
+    @staticmethod
     def get_device():
         if torch.cuda.is_available():
             return "cuda"
@@ -808,14 +836,6 @@ class BaseTranscriptionPipeline(ABC):
         Validate gradio specific values that can't be displayed as None in the UI.
         Related issue : https://github.com/gradio-app/gradio/issues/8723
         """
-        if params.whisper.lang is None:
-            pass
-        elif params.whisper.lang == AUTOMATIC_DETECTION:
-            params.whisper.lang = None
-        else:
-            language_code_dict = {value: key for key, value in LANGUAGES.items()}
-            params.whisper.lang = language_code_dict[params.whisper.lang]
-
         if params.whisper.initial_prompt == GRADIO_NONE_STR:
             params.whisper.initial_prompt = None
         if params.whisper.prefix == GRADIO_NONE_STR:

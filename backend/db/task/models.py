@@ -8,6 +8,7 @@ from datetime import datetime
 from sqlalchemy.types import Enum as SQLAlchemyEnum
 from typing import Any
 from sqlmodel import SQLModel, Field, JSON, Column
+from sqlmodel.main import NaiveDatetime
 
 
 class ResultType(str, Enum):
@@ -99,6 +100,7 @@ class Task(SQLModel, table=True):
     )
     uuid: str = Field(
         default_factory=lambda: str(uuid4()),
+        index=True,
         description="Universally unique identifier for each task"
     )
     status: Optional[TaskStatus] = Field(
@@ -150,11 +152,11 @@ class Task(SQLModel, table=True):
         default=None,
         description="Error message, if any, associated with the task"
     )
-    created_at: datetime = Field(
+    created_at: NaiveDatetime = Field(
         default_factory=datetime.utcnow,
         description="Date and time of creation"
     )
-    updated_at: datetime = Field(
+    updated_at: NaiveDatetime = Field(
         default_factory=datetime.utcnow,
         sa_column_kwargs={"onupdate": datetime.utcnow},
         description="Date and time of last update"
@@ -162,6 +164,11 @@ class Task(SQLModel, table=True):
     progress: Optional[float] = Field(
         default=0.0,
         description="Progress of the task"
+    )
+    artifacts: Optional[dict] = Field(
+        default_factory=dict,
+        sa_column=Column(JSON),
+        description="Internal cache-relative artifact references, not exposed by the API"
     )
 
     def to_response(self) -> "TaskStatusResponse":

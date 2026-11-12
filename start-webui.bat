@@ -1,7 +1,17 @@
 @echo off
 
-call venv\scripts\activate
-python app.py %*
+cd /d "%~dp0"
 
-echo "launching the app"
+if not exist "venv\Scripts\activate.bat" (
+    echo No virtualenv found. Run Install.bat first.
+    exit /b 1
+)
+
+call "venv\Scripts\activate.bat"
+
+echo launching the app
+python app.py %*
+set APP_EXIT=%ERRORLEVEL%
+
 pause
+exit /b %APP_EXIT%

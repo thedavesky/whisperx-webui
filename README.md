@@ -100,8 +100,8 @@ After installing FFmpeg, **make sure to add the `FFmpeg/bin` folder to your syst
 ```shell
 git clone https://github.com/chboishabba/WhisperX-WebUI.git
 ```
-2. Run `install.bat` or `install.sh` to install dependencies. (It will create a `venv` directory and install dependencies there.)
-3. Start WebUI with `start-webui.bat` or `start-webui.sh` (It will run `python app.py` after activating the venv)
+2. Run `Install.bat` (Windows) or `Install.sh` (Linux/macOS) to install dependencies. (It will create a `venv` directory in the repository and install dependencies there.)
+3. Start WebUI with `start-webui.bat` (Windows) or `bash start-webui.sh` (Linux/macOS). (It will run `python app.py` after activating the venv)
 
 And you can also run the project with command line arguments if you like to, see [wiki](https://github.com/chboishabba/WhisperX-WebUI/wiki/Command-Line-Arguments) for a guide to arguments.
 

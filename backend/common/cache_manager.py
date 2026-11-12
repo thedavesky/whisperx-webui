@@ -1,8 +1,11 @@
 import time
 import os
-from typing import Optional
 
+from modules.utils.logger import get_logger
 from modules.utils.paths import BACKEND_CACHE_DIR
+
+
+logger = get_logger()
 
 
 def cleanup_old_files(cache_dir: str = BACKEND_CACHE_DIR, ttl: int = 60):
@@ -13,9 +16,14 @@ def cleanup_old_files(cache_dir: str = BACKEND_CACHE_DIR, ttl: int = 60):
             if filename == place_holder_name:
                 continue
             filepath = os.path.join(root, filename)
-            if now - os.path.getmtime(filepath) > ttl:
+            try:
+                modified = os.path.getmtime(filepath)
+            except OSError:
+                continue
+            if now - modified > ttl:
                 try:
                     os.remove(filepath)
-                except Exception as e:
-                    print(f"Error removing {filepath}")
-                    raise
+                except FileNotFoundError:
+                    continue
+                except OSError as e:
+                    logger.error(f"Error removing {filepath}: {e}")

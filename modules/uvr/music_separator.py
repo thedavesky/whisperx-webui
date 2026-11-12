@@ -36,7 +36,7 @@ class MusicSeparatorEngine:
                  output_dir: Optional[str] = UVR_OUTPUT_DIR):
         self.model = None
         self.device = self.get_device()
-        self.available_devices = ["cpu", "cuda", "xpu", "mps"]
+        self.available_devices = self.get_available_devices()
         self.model_dir = model_dir
         self.output_dir = output_dir
         instrumental_output_dir = os.path.join(self.output_dir, "instrumental")
@@ -103,6 +103,7 @@ class MusicSeparatorEngine:
             np.ndarray: Vocals numpy arrays.
             file_paths: List of file paths where the separated audio is saved. Return empty when save_file is False.
         """
+        device = self.resolve_device(device)
         if isinstance(audio, str):
             output_filename, ext = os.path.basename(audio), ".wav"
             output_filename, _ = os.path.splitext(output_filename)
@@ -170,6 +171,30 @@ class MusicSeparatorEngine:
         else:
             return "cpu"
 
+    @staticmethod
+    def get_available_devices() -> List[str]:
+        """Report the accelerators this machine can actually run separation on."""
+        devices = ["cpu"]
+        if torch.cuda.is_available():
+            devices.append("cuda")
+        if torch.xpu.is_available():
+            devices.append("xpu")
+        if torch.backends.mps.is_available():
+            devices.append("mps")
+        return devices
+
+    def resolve_device(self, device: Optional[str] = None) -> str:
+        """Validate the requested device instead of silently running elsewhere."""
+        available = self.get_available_devices()
+        if device in (None, "auto"):
+            return self.get_device()
+        if device not in available:
+            raise gr.Error(
+                f"Separation device '{device}' is not available on this machine; "
+                f"available devices: {', '.join(available)}."
+            )
+        return device
+
     def offload(self):
         """Offload the model and free up the memory"""
         if self.model is not None:
@@ -208,7 +233,6 @@ class MusicSeparator:
         self.model_dir = model_dir
         self.output_dir = output_dir
         self.available_models = UVR_AVAILABLE_MODELS
-        self.available_devices = ["cpu", "cuda", "xpu", "mps"]
         self._owner = owner
         self._own_process = None if owner is not None else InferenceProcess()
         self._own_lock = threading.Lock()
@@ -217,6 +241,10 @@ class MusicSeparator:
     @property
     def device(self) -> str:
         return self._probe()["uvr_device"]
+
+    @property
+    def available_devices(self) -> List[str]:
+        return self._probe()["uvr_available_devices"]
 
     @property
     def _job_lock(self) -> threading.Lock:
@@ -277,6 +305,8 @@ class MusicSeparator:
                        progress: gr.Progress = gr.Progress()) -> List[str]:
         """Separate the background music from the audio files. Returns only last Instrumental and vocals file paths
         to display into gr.Audio()"""
+        if not files:
+            raise gr.Error("No audio files selected for separation.")
         MusicSeparatorEngine.cache_parameters(model_size=model_name, segment_size=segment_size)
 
         with self._job_lock:

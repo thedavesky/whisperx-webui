@@ -4,9 +4,11 @@ import logging
 import os
 import time
 from dataclasses import replace
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+import typing
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import gradio as gr
+import ctranslate2
 import numpy as np
 import torch
 
@@ -22,6 +24,8 @@ except ImportError:  # pragma: no cover - handled at runtime
 DIARIZATION_MODEL_NAME = "pyannote/speaker-diarization-community-1"
 
 logger = get_logger()
+
+__all__ = ["WhisperXWrapper", "DIARIZATION_MODEL_NAME"]
 
 
 class WhisperXWrapper:
@@ -54,27 +58,76 @@ class WhisperXWrapper:
         return "out of memory" in message and device.startswith("cuda")
 
     @staticmethod
-    def _cpu_fallback_compute_type(params: WhisperParams) -> str:
-        # WhisperX does not support float16 on CPU; prefer int8 to conserve memory
-        if params.compute_type in (None, "float16"):
-            return "int8"
-        return params.compute_type
+    def _asr_available_devices() -> List[str]:
+        """ASR runs on CTranslate2, which supports CUDA and CPU only."""
+        devices = ["cpu"]
+        if torch.cuda.is_available():
+            devices.append("cuda")
+        return devices
+
+    @classmethod
+    def _resolve_asr_device(cls, device: Optional[str]) -> str:
+        available = cls._asr_available_devices()
+        if device in (None, "auto"):
+            return "cuda" if "cuda" in available else "cpu"
+        if device not in available:
+            raise gr.Error(
+                f"The ASR runtime (ctranslate2) does not support device '{device}'; "
+                f"available devices: {', '.join(available)}."
+            )
+        return device
+
+    # ASR and forced alignment share the CTranslate2/torchaudio device set.
+    _resolve_device = _resolve_asr_device
 
     @staticmethod
-    def _available_diarization_compute_types(device: str) -> list[str]:
+    def _available_diarization_devices() -> List[str]:
+        devices = ["cpu"]
+        if torch.cuda.is_available():
+            devices.append("cuda")
+        if hasattr(torch, "xpu") and torch.xpu.is_available():
+            devices.append("xpu")
+        if torch.backends.mps.is_available():
+            devices.append("mps")
+        return devices
+
+    @classmethod
+    def _resolve_diarization_device(cls, device: Optional[str]) -> str:
+        """pyannote runs on its own devices; an unavailable request is an error."""
+        available = cls._available_diarization_devices()
+        if device in (None, "auto"):
+            return "cuda" if "cuda" in available else "cpu"
+        if device not in available:
+            raise gr.Error(
+                f"Diarization device '{device}' is not available on this machine; "
+                f"available devices: {', '.join(available)}."
+            )
+        return device
+
+    @staticmethod
+    def _cpu_fallback_compute_type(params: WhisperParams) -> str:
+        """Pick a precision the CPU CTranslate2 runtime supports after CUDA exhaustion."""
+        try:
+            supported = list(ctranslate2.get_supported_compute_types("cpu"))
+        except Exception:  # ctranslate2 probing can fail on exotic CPUs
+            supported = ["int8", "float32"]
+        requested = params.compute_type
+        if requested in supported:
+            return requested
+        for preference in ("int8", "float32"):
+            if preference in supported:
+                return preference
+        return supported[0]
+
+    @staticmethod
+    def _available_diarization_compute_types(device: str) -> List[str]:
+        """pyannote runs fp32; the diarization pipeline has no lower-precision path."""
         return ["float32"]
 
     @staticmethod
-    def _resolve_diarization_device(device: Optional[str]) -> str:
-        if device in (None, "auto"):
-            if torch.cuda.is_available():
-                return "cuda"
-            if hasattr(torch, "xpu") and torch.xpu.is_available():
-                return "xpu"
-            if torch.backends.mps.is_available():
-                return "mps"
-            return "cpu"
-        return device
+    def _supported_alignment_languages() -> Set[str]:
+        align_module = importlib.import_module("whisperx.alignment")
+        return set(align_module.DEFAULT_ALIGN_MODELS_TORCH) | set(align_module.DEFAULT_ALIGN_MODELS_HF)
 
     @staticmethod
     def _require_whisperx() -> None:
@@ -82,15 +135,6 @@ class WhisperXWrapper:
             raise ImportError(
                 "whisperx is required for alignment/diarization. Install it with `pip install whisperx`."
             )
-
-    @staticmethod
-    def _resolve_device(device: Optional[str]) -> str:
-        if device in (None, "auto"):
-            return "cuda" if torch.cuda.is_available() else "cpu"
-        if device == "xpu":
-            # whisperx does not support XPU execution yet. Fallback to CPU.
-            return "cuda" if torch.cuda.is_available() else "cpu"
-        return device
 
     @staticmethod
     def _vad_options(params: WhisperParams) -> Dict[str, float]:
@@ -141,17 +185,55 @@ class WhisperXWrapper:
 
         option_updates = {
             "beam_size": params.beam_size,
+            "best_of": params.best_of,
             "patience": params.patience,
             "length_penalty": params.length_penalty,
+            "repetition_penalty": params.repetition_penalty,
+            "no_repeat_ngram_size": params.no_repeat_ngram_size,
+            "log_prob_threshold": params.log_prob_threshold,
+            "no_speech_threshold": params.no_speech_threshold,
+            "compression_ratio_threshold": params.compression_ratio_threshold,
+            "condition_on_previous_text": params.condition_on_previous_text,
+            "prompt_reset_on_temperature": params.prompt_reset_on_temperature,
+            "temperatures": [params.temperature],
             "initial_prompt": params.initial_prompt,
             "prefix": params.prefix,
             "suppress_blank": params.suppress_blank,
             "suppress_tokens": params.suppress_tokens,
-            "without_timestamps": False,
+            "max_initial_timestamp": params.max_initial_timestamp,
+            "prepend_punctuations": params.prepend_punctuations,
+            "append_punctuations": params.append_punctuations,
+            "max_new_tokens": params.max_new_tokens,
+            "hallucination_silence_threshold": params.hallucination_silence_threshold,
             "hotwords": params.hotwords,
+            "without_timestamps": False,
+            "word_timestamps": False,
         }
 
         self._model.options = replace(self._model.options, **option_updates)
+
+    @staticmethod
+    def _reject_unsupported_options(params: WhisperParams) -> None:
+        """Fail loudly on options the WhisperX ASR pipeline cannot apply."""
+        if params.word_timestamps and params.is_translate:
+            raise gr.Error(
+                "Word timestamps cannot be aligned onto translated text. Transcription "
+                "with translation still exports segment-level subtitles; turn off word "
+                "timestamps (or translation) to continue."
+            )
+
+        defaults = WhisperParams()
+        unsupported = [
+            name
+            for name in ("language_detection_threshold", "language_detection_segments")
+            if getattr(params, name) != getattr(defaults, name)
+        ]
+        if unsupported:
+            names = ", ".join(unsupported)
+            raise gr.Error(
+                f"The WhisperX pipeline does not use {names}; keep them at their defaults "
+                f"({', '.join(str(getattr(defaults, name)) for name in unsupported)})."
+            )
 
     @staticmethod
     def _segments_from_dict(segments: Sequence[dict], prefix_speaker: bool = False) -> List[Segment]:
@@ -212,12 +294,35 @@ class WhisperXWrapper:
         device: str,
         progress: gr.Progress,
         progress_callback: Optional[Callable[[float], None]] = None,
-    ) -> Tuple[List[Segment], Optional[str], float]:
-        """Transcribe audio with WhisperX."""
+    ) -> Tuple[List[Segment], Optional[str], float, str]:
+        """Transcribe audio with WhisperX.
+
+        Returns the segments, the detected language, the elapsed time, and the
+        device that actually ran the model (it changes on CPU fallback), so later
+        stages never return to an exhausted GPU.
+        """
         self._require_whisperx()
+        self._reject_unsupported_options(params)
         resolved_device = self._resolve_device(device)
         active_params = params
-        self._load_model(active_params, resolved_device)
+        try:
+            self._load_model(active_params, resolved_device)
+        except RuntimeError as exc:
+            if not self._is_cuda_oom(exc, resolved_device):
+                raise
+            # Release the half-loaded GPU model before falling back.
+            self._model = None
+            self._current_model_size = None
+            self._free_memory()
+            resolved_device = "cpu"
+            active_params = params.model_copy(
+                update={
+                    "compute_type": self._cpu_fallback_compute_type(params),
+                    "batch_size": max(1, params.batch_size // 2),
+                }
+            )
+            progress(0, desc="CUDA out of memory while loading the model; retrying on CPU..")
+            self._load_model(active_params, resolved_device)
         self._update_vad_options(active_params)
         self._update_asr_options(active_params)
 
@@ -262,6 +367,10 @@ class WhisperXWrapper:
                 if resolved_device == "cpu":
                     raise
 
+                # Release the model that exhausted the GPU before reloading on CPU.
+                self._model = None
+                self._current_model_size = None
+                self._free_memory()
                 resolved_device = "cpu"
                 active_params = params.model_copy(
                     update={
@@ -269,7 +378,6 @@ class WhisperXWrapper:
                         "batch_size": batch_size,
                     }
                 )
-                self._model = None
                 self._load_model(active_params, resolved_device)
                 self._update_asr_options(active_params)
                 progress(0, desc="Retrying WhisperX on CPU after CUDA OOM..")
@@ -287,7 +395,7 @@ class WhisperXWrapper:
         segments = self._segments_from_dict(segments_data)
 
         elapsed = time.time() - start_time
-        return segments, language, elapsed
+        return segments, language, elapsed, resolved_device
 
     def align(
         self,
@@ -303,6 +411,11 @@ class WhisperXWrapper:
         self._require_whisperx()
         resolved_device = self._resolve_device(device)
         language_code = (language or "en").lower()
+        if language_code not in self._supported_alignment_languages():
+            raise gr.Error(
+                f"WhisperX has no alignment model for language '{language_code}', so word "
+                f"timestamps cannot be produced. Disable word timestamps or pick a supported language."
+            )
 
         if self._align_model is None or self._align_language != language_code:
             logger.info("Loading WhisperX alignment model for language %s", language_code)
@@ -374,8 +487,7 @@ class WhisperXWrapper:
         token = diarization_params.hf_token or os.environ.get("HF_TOKEN")
         available_compute_types = self._available_diarization_compute_types(
             resolved_device)
-        requested_compute_type = getattr(
-            diarization_params, "compute_type", None)
+        requested_compute_type = diarization_params.diarization_compute_type
         if requested_compute_type not in available_compute_types:
             if requested_compute_type is not None:
                 logger.warning(

@@ -130,6 +130,9 @@ class DeepLAPI:
         if fileobjs and isinstance(fileobjs[0], gr.utils.NamedString):
             fileobjs = [fileobj.name for fileobj in fileobjs]
 
+        if not fileobjs:
+            raise gr.Error("No subtitle files selected for translation.")
+
         self.cache_parameters(
             api_key=auth_key,
             is_pro=is_pro,

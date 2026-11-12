@@ -78,7 +78,7 @@ The Dockerfile should be built when you're in the root directory of Whisper-WebU
 
 1. git clone this repository
 ```
-git clone https://github.com/jhj0517/Whisper-WebUI.git
+git clone https://github.com/chboishabba/WhisperX-WebUI.git
 ```
 2. Mount volume paths with your local paths in `docker-compose.yaml`.
 3. Build the image

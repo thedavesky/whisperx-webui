@@ -16,13 +16,16 @@ from modules.uvr.music_separator import MusicSeparator
 from modules.utils.paths import BACKEND_CACHE_DIR
 from backend.common.audio import read_audio
 from backend.common.models import QueueResponse
-from backend.common.compresser import get_file_hash, find_file_by_hash
+from backend.common.compresser import get_file_hash
 from backend.db.task.models import TaskStatus, TaskType, ResultType
-from backend.db.task.dao import add_task_to_db, update_task_status_in_db
+from backend.db.task.dao import add_task_to_db, record_task_outcome, update_task_status_in_db
+from modules.utils.logger import get_logger
 from .models import BGMSeparationResult
 
 
 bgm_separation_router = APIRouter(prefix="/bgm-separation", tags=["BGM Separation"])
+
+logger = get_logger()
 
 
 @functools.lru_cache
@@ -37,6 +40,11 @@ def run_bgm_separation(
     params: BGMSeparationParams,
     identifier: str,
 ) -> Tuple[np.ndarray, np.ndarray]:
+    """Run one queued job and always leave the task in a truthful terminal state.
+
+    shortcut: the job runs in this process, so a restart loses it; reconciled at
+    startup, and a durable queue is required if jobs must survive restarts.
+    """
     update_task_status_in_db(
         identifier=identifier,
         update_data={
@@ -47,31 +55,49 @@ def run_bgm_separation(
     )
 
     start_time = datetime.utcnow()
-    instrumental, vocal, filepaths = get_bgm_separation_inferencer().separate(
-        audio=audio,
-        model_name=params.uvr_model_size,
-        device=params.uvr_device,
-        segment_size=params.segment_size,
-        save_file=True,
-        progress=gr.Progress()
-    )
-    instrumental_path, vocal_path = filepaths
-    elapsed_time = (datetime.utcnow() - start_time).total_seconds()
+    try:
+        instrumental, vocal, filepaths = get_bgm_separation_inferencer().separate(
+            audio=audio,
+            model_name=params.uvr_model_size,
+            device=params.uvr_device,
+            segment_size=params.segment_size,
+            save_file=True,
+            progress=gr.Progress()
+        )
+        instrumental_path, vocal_path = filepaths
+        elapsed_time = (datetime.utcnow() - start_time).total_seconds()
+        instrumental_hash = get_file_hash(instrumental_path)
+        vocal_hash = get_file_hash(vocal_path)
 
-    update_task_status_in_db(
-        identifier=identifier,
-        update_data={
-            "uuid": identifier,
-            "status": TaskStatus.COMPLETED,
-            "result": BGMSeparationResult(
-                instrumental_hash=get_file_hash(instrumental_path),
-                vocal_hash=get_file_hash(vocal_path)
-            ).model_dump(),
-            "result_type": ResultType.FILEPATH,
-            "updated_at": datetime.utcnow(),
-            "duration": elapsed_time
-        }
-    )
+        update_task_status_in_db(
+            identifier=identifier,
+            update_data={
+                "uuid": identifier,
+                "status": TaskStatus.COMPLETED,
+                "result": BGMSeparationResult(
+                    instrumental_hash=instrumental_hash,
+                    vocal_hash=vocal_hash
+                ).model_dump(),
+                "artifacts": {
+                    "instrumental": os.path.relpath(instrumental_path, BACKEND_CACHE_DIR),
+                    "vocal": os.path.relpath(vocal_path, BACKEND_CACHE_DIR),
+                },
+                "result_type": ResultType.FILEPATH,
+                "updated_at": datetime.utcnow(),
+                "duration": elapsed_time,
+                "progress": 1.0,
+                "error": None,
+            }
+        )
+    except Exception as exc:
+        logger.exception(f"BGM separation task {identifier} failed.")
+        cancelled = isinstance(exc, gr.Error) and "cancelled" in str(exc).lower()
+        record_task_outcome(
+            identifier,
+            TaskStatus.CANCELLED if cancelled else TaskStatus.FAILED,
+            "Task cancelled." if cancelled else f"BGM separation failed: {type(exc).__name__}",
+        )
+        raise
     return instrumental, vocal
 
 
@@ -108,5 +134,3 @@ async def bgm_separation(
     )
 
     return QueueResponse(identifier=identifier, status=TaskStatus.QUEUED, message="BGM Separation task has queued")
-
-

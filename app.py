@@ -149,6 +149,7 @@ class App:
             youtube_link,
             file_format,
             add_timestamp,
+            gr.Progress(),
             *params.to_list(),
         )
 
@@ -159,6 +160,7 @@ class App:
             mic_audio,
             file_format,
             add_timestamp,
+            gr.Progress(),
             *params.to_list(),
         )
 
@@ -253,7 +255,7 @@ class App:
                                                                     available_devices=self.whisper_inf.available_diarization_devices,
                                                                     device=self.whisper_inf.diarization_device,
                                                                     available_compute_types=self.whisper_inf.available_diarization_compute_types,
-                                                                    compute_type=self.whisper_inf.diarization_compute_type)
+                                                                    diarization_compute_type=self.whisper_inf.diarization_compute_type)
 
         word_timing_accordion = gr.Accordion(_("Word timing"), open=False, elem_classes="pipeline-options")
 

@@ -205,7 +205,7 @@ def _probe() -> dict:
     from modules.uvr.music_separator import UVR_AVAILABLE_MODELS, MusicSeparatorEngine
     from modules.whisper.base_transcription_pipeline import BaseTranscriptionPipeline
 
-    device = BaseTranscriptionPipeline.get_device()
+    device = BaseTranscriptionPipeline.get_asr_device()
     compute_types = BaseTranscriptionPipeline.get_available_compute_type(
         SimpleNamespace(device=device)
     )
@@ -220,6 +220,7 @@ def _probe() -> dict:
             SimpleNamespace(device=device)
         ),
         "uvr_device": MusicSeparatorEngine.get_device(),
+        "uvr_available_devices": MusicSeparatorEngine.get_available_devices(),
         "uvr_available_models": UVR_AVAILABLE_MODELS,
     }
 

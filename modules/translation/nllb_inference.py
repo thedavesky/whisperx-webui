@@ -54,13 +54,10 @@ class NLLBInferenceEngine(TranslationBase):
             print("\nInitializing NLLB Model..\n")
             progress(0, desc="Initializing NLLB Model..")
             self.current_model_size = model_size
-            local_files_only = self.is_model_exists(self.current_model_size)
             self.model = AutoModelForSeq2SeqLM.from_pretrained(pretrained_model_name_or_path=model_size,
-                                                               cache_dir=self.model_dir,
-                                                               local_files_only=local_files_only)
+                                                               cache_dir=self.model_dir)
             self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=model_size,
-                                                           cache_dir=os.path.join(self.model_dir, "tokenizers"),
-                                                           local_files_only=local_files_only)
+                                                           cache_dir=os.path.join(self.model_dir, "tokenizers"))
 
         self.pipeline = pipeline("translation",
                                  model=self.model,
@@ -73,21 +70,6 @@ class NLLBInferenceEngine(TranslationBase):
         self.pipeline = None
         self.tokenizer = None
         super().offload()
-
-    def is_model_exists(self,
-                        model_size: str):
-        """Check if model exists or not (Only facebook model)"""
-        prefix = "models--facebook--"
-        _id, model_size_name = model_size.split("/")
-        model_dir_name = prefix + model_size_name
-        model_dir_path = os.path.join(self.model_dir, model_dir_name)
-        if os.path.exists(model_dir_path) and os.listdir(model_dir_path):
-            return True
-        for model_dir_name in os.listdir(self.model_dir):
-            if (model_size in model_dir_name or model_size_name in model_dir_name) and \
-                    os.listdir(os.path.join(self.model_dir, model_dir_name)):
-                return True
-        return False
 
 
 class NLLBInference:

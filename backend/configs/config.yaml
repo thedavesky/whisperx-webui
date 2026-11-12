@@ -6,9 +6,12 @@ whisper:
 
 bgm_separation:
   # UVR model sizes between ["UVR-MDX-NET-Inst_HQ_4", "UVR-MDX-NET-Inst_3"]
-  model_size: UVR-MDX-NET-Inst_HQ_4
+  uvr_model_size: UVR-MDX-NET-Inst_HQ_4
   # Device to load BGM separation model between ["cuda", "cpu", "xpu"]
-  device: cuda
+  uvr_device: cuda
+
+diarization:
+  diarization_compute_type: float32
 
 # Settings that apply to the `cache' directory. The output files for `/bgm-separation` are stored in the `cache' directory,
 # (You can check out the actual generated files by testing `/bgm-separation`.)
@@ -18,4 +21,3 @@ cache:
   ttl: 600
   # Clean up frequency in seconds, defaults to 1 minutes
   frequency: 60
-

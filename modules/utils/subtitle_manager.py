@@ -9,8 +9,12 @@ import zlib
 from typing import Callable, List, Optional, TextIO, Union, Dict, Tuple
 from datetime import datetime
 
+import gradio as gr
+
 from modules.whisper.data_classes import Segment, Word
 from .files_manager import read_file
+
+LANGUAGES_WITHOUT_SPACES = {"ja", "zh"}
 
 
 def format_timestamp(
@@ -56,16 +60,130 @@ def time_str_to_seconds(time_str: str, decimal_marker: str = ",") -> float:
 
 def get_start(segments: List[dict]) -> Optional[float]:
     return next(
-        (w["start"] for s in segments for w in s["words"]),
+        (w["start"] for s in segments for w in (s.get("words") or [])),
         segments[0]["start"] if segments else None,
     )
 
 
 def get_end(segments: List[dict]) -> Optional[float]:
     return next(
-        (w["end"] for s in reversed(segments) for w in reversed(s["words"])),
+        (w["end"] for s in reversed(segments) for w in reversed(s.get("words") or [])),
         segments[-1]["end"] if segments else None,
     )
+
+
+def read_subtitle_lines(file_path: str) -> List[str]:
+    """Read a subtitle file as lines, tolerating a UTF-8 BOM and CRLF endings."""
+    content = read_file(file_path).lstrip("\ufeff").replace("\r\n", "\n")
+    return content.split("\n")
+
+
+def parse_cue_block(block: List[str], decimal_marker: str, file_path: str, context: str,
+                    require_timing: bool = True) -> Optional[Segment]:
+    """Build one Segment from a SRT/VTT cue block.
+
+    The cue identifier (SRT index, VTT cue id) is optional, the end timestamp may
+    carry VTT cue settings, and multiline dialogue is kept verbatim. A block
+    without dialogue text is skipped; a block with a broken timestamp fails with
+    the file, block and line in the message. `require_timing` is False for WebVTT,
+    whose header, NOTE and LIBRARY blocks legitimately carry no cue timing.
+    """
+    lines = [line.strip() for line in block]
+    timing_pos = next((i for i, line in enumerate(lines) if " --> " in line), None)
+    if timing_pos is None:
+        if require_timing:
+            raise gr.Error(f"{file_path}: {context} has no timestamp line: {lines[0]!r}")
+        return None
+
+    time_line = lines[timing_pos]
+    start_str, end_str = time_line.split(" --> ", 1)
+    try:
+        start = time_str_to_seconds(start_str.strip(), decimal_marker)
+        # VTT cue settings (`position:10% align:start`) follow the end timestamp.
+        end = time_str_to_seconds(end_str.split()[0], decimal_marker)
+    except Exception as e:
+        raise gr.Error(
+            f"{file_path}: invalid timestamp in {context} ({time_line!r}): {e}"
+        )
+
+    text = "\n".join(lines[timing_pos + 1:]).strip()
+    if not text:
+        return None
+    return Segment(start=start, end=end, text=text)
+
+
+LRC_STAMP = re.compile(r"\[(\d[^\]]*:[^\]]*)\]")
+
+
+def require_timed_cue(extension: str, start: Optional[str], end: Optional[str]) -> None:
+    """Reject cues a format cannot express (e.g. a start-only LRC line written as SRT)."""
+    if start is None or end is None:
+        missing = "only a start" if end is None else "only an end"
+        raise gr.Error(
+            f"{extension.upper()} needs a start and an end timestamp for every cue, "
+            f"but one cue has {missing}. Use LRC for lines without an end timestamp."
+        )
+
+
+def split_cue_blocks(lines: List[str]) -> List[Tuple[List[str], int]]:
+    """Split SRT/VTT content into cue blocks, keeping each block's first line number."""
+    blocks: List[Tuple[List[str], int]] = []
+    block: List[str] = []
+    start_line = 0
+    for lineno, line in enumerate(lines, start=1):
+        if line.strip() == "":
+            if block:
+                blocks.append((block, start_line))
+                block = []
+        else:
+            if not block:
+                start_line = lineno
+            block.append(line)
+    if block:
+        blocks.append((block, start_line))
+    return blocks
+
+
+def parse_lrc_line(line: str, decimal_marker: str, file_path: str, lineno: int) -> List[Segment]:
+    """Turn one LRC line into segments.
+
+    Handles the conventional `[mm:ss.xx]lyric` form, the same lyric repeated under
+    several timestamps, and this app's word-timed form
+    `[mm:ss.xxx]word[mm:ss.xxx]word[mm:ss.xxx]`, where a trailing stamp is the end
+    of the last word. A line without a closing stamp keeps `end=None`; the end is
+    only inferred from the next cue when the line itself supplies that stamp.
+    """
+    tokens = LRC_STAMP.split(line)
+    stamps = tokens[1::2]
+    texts = tokens[2::2]
+    if not stamps:
+        return []
+
+    segments: List[Segment] = []
+    pending: List[float] = []
+    for index, stamp in enumerate(stamps):
+        text = texts[index] if index < len(texts) else ""
+        try:
+            seconds = time_str_to_seconds(stamp, decimal_marker)
+        except Exception as e:
+            raise gr.Error(
+                f"{file_path}: invalid LRC timestamp [{stamp}] on line {lineno}: {e}"
+            )
+        if not text.strip():
+            pending.append(seconds)
+            continue
+        # Every stamp that was waiting for this text gets the same lyric.
+        for start in pending:
+            segments.append(Segment(start=start, end=None, text=text.strip()))
+        pending = []
+        segments.append(Segment(start=seconds, end=None, text=text.strip()))
+
+    if pending and segments:
+        # A stamp after the final text closes that cue, so the word timings chain up.
+        for index, segment in enumerate(segments[:-1]):
+            segment.end = segments[index + 1].start
+        segments[-1].end = pending[0]
+    return segments
 
 
 def extract_probability(word: Union[Word, dict, None]) -> Optional[float]:
@@ -117,7 +235,7 @@ class ResultWriter:
         self, result: Union[dict, List[Segment]], output_file_name: str,
             options: Optional[dict] = None, **kwargs
     ):
-        if isinstance(result, List) and result and isinstance(result[0], Segment):
+        if isinstance(result, List) and all(isinstance(seg, Segment) for seg in result):
             result = {"segments": [seg.model_dump() for seg in result]}
 
         output_path = os.path.join(
@@ -143,19 +261,20 @@ class WriteTXT(ResultWriter):
         self, result: Union[Dict, List[Segment]], file: TextIO, options: Optional[dict] = None, **kwargs
     ):
         for segment in result["segments"]:
+            if segment["text"] is None:
+                continue
             print(segment["text"].strip(), file=file, flush=True)
 
     def to_segments(self, file_path: str):
         segments = []
 
-        blocks = read_file(file_path).split('\n')
-
-        for block in blocks:
-            segments.append(Segment(
-                start=None,
-                end=None,
-                text=block
-            ))
+        for line in read_subtitle_lines(file_path):
+            if line.strip() != '':
+                segments.append(Segment(
+                    start=None,
+                    end=None,
+                    text=line.strip()
+                ))
         return segments
 
 
@@ -185,122 +304,183 @@ class SubtitlesWriter(ResultWriter):
         max_line_width = max_line_width or 1000
         max_words_per_line = max_words_per_line or 1000
 
+        language = (result.get("language") or "").lower()
+        spaced_language = language not in LANGUAGES_WITHOUT_SPACES
+
         def render_segment_confidence(segment: dict) -> str:
             confidence = format_confidence(get_segment_confidence(segment)) if include_confidence else None
             return f" (conf: {confidence})" if confidence is not None else ""
 
         def render_word_label(word: dict) -> str:
             label = word.get("word", "")
+            speaker = word.get("speaker")
+            if speaker:
+                label = f"[{speaker}] {label.strip()}"
             if include_confidence:
                 word_confidence = format_confidence(extract_probability(word))
                 if word_confidence is not None:
                     label = f"{label} ({word_confidence})"
             return label
 
-        def iterate_subtitles():
+        def segment_speaker(segment: dict) -> Optional[str]:
+            speaker = segment.get("speaker")
+            text = segment.get("text") or ""
+            if not speaker and "|" in text:
+                candidate = text.split("|", 1)[0].strip()
+                if candidate.upper().startswith("SPEAKER"):
+                    speaker = candidate
+            return speaker
+
+        def strip_speaker_prefix(text: str, speaker: Optional[str]) -> str:
+            if speaker and text.strip().startswith(f"{speaker}|"):
+                return text.strip()[len(speaker) + 1:].strip()
+            return text.strip()
+
+        def usable_words(words: List[dict]) -> bool:
+            """Word timing is usable only when every word has finite, ordered bounds."""
+            previous_start = None
+            for word in words:
+                start, end = word.get("start"), word.get("end")
+                if start is None or end is None:
+                    return False
+                if not (math.isfinite(start) and math.isfinite(end)):
+                    return False
+                if end < start:
+                    return False
+                if previous_start is not None and start < previous_start:
+                    return False
+                previous_start = start
+            return True
+
+        def spaced_words(segment: dict) -> List[dict]:
+            """Restore the spacing/punctuation WhisperX alignment strips from words.
+
+            The words are located in the segment text in order, so the original
+            inter-word characters (spaces, punctuation) are reused verbatim; no
+            space is invented for languages that are written without spaces.
+            """
+            text = strip_speaker_prefix(segment.get("text") or "", segment_speaker(segment))
+            # `List[Segment]` results carry no language, so detect unspaced scripts here.
+            # shortcut: CJK ranges only; if the writer gains the language, use it directly.
+            spaced = spaced_language and not re.search(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]", text)
+            cursor = 0
+            rendered: List[dict] = []
+            for word in segment["words"]:
+                stripped = (word.get("word") or "").strip()
+                if not stripped:
+                    continue
+                found = text.find(stripped, cursor)
+                if found >= 0:
+                    label = text[cursor:found] + stripped
+                    cursor = found + len(stripped)
+                elif spaced:
+                    label = (" " if cursor > 0 else "") + stripped
+                else:
+                    label = stripped
+                rendered.append({**word, "word": label})
+            return rendered
+
+        def segment_level_cues(segment: dict):
+            text = segment.get("text")
+            if text is None:
+                return
+            speaker = segment_speaker(segment)
+            text = strip_speaker_prefix(text, speaker).replace("-->", "->")
+            confidence = render_segment_confidence(segment)
+            if confidence:
+                text = f"{text}{confidence}"
+            yield (
+                self.format_timestamp(segment["start"]) if segment.get("start") is not None else None,
+                self.format_timestamp(segment["end"]) if segment.get("end") is not None else None,
+                text,
+            )
+
+        def word_chunks(segment_words: List[dict], last: float):
             line_len = 0
             line_count = 1
-            # the next subtitle to yield (a list of word timings with whitespace)
             subtitle: List[dict] = []
-            last: float = get_start(result["segments"]) or 0.0
-            for segment in result["segments"]:
-                chunk_index = 0
-                words_count = max_words_per_line
-                while chunk_index < len(segment["words"]):
-                    remaining_words = len(segment["words"]) - chunk_index
-                    if max_words_per_line > len(segment["words"]) - chunk_index:
-                        words_count = remaining_words
-                    for i, original_timing in enumerate(
-                        segment["words"][chunk_index : chunk_index + words_count]
+            for original_timing in segment_words:
+                timing = original_timing.copy()
+                long_pause = not preserve_segments and timing["start"] - last > 3.0
+                has_room = line_len + len(timing["word"]) <= max_line_width
+                if line_len > 0 and has_room and not long_pause:
+                    # line continuation
+                    line_len += len(timing["word"])
+                else:
+                    # new line
+                    timing["word"] = timing["word"].strip()
+                    if (
+                        len(subtitle) > 0
+                        and max_line_count is not None
+                        and (long_pause or line_count >= max_line_count)
                     ):
-                        timing = original_timing.copy()
-                        long_pause = (
-                            not preserve_segments and timing["start"] - last > 3.0
-                        )
-                        has_room = line_len + len(timing["word"]) <= max_line_width
-                        seg_break = i == 0 and len(subtitle) > 0 and preserve_segments
-                        if (
-                            line_len > 0
-                            and has_room
-                            and not long_pause
-                            and not seg_break
-                        ):
-                            # line continuation
-                            line_len += len(timing["word"])
-                        else:
-                            # new line
-                            timing["word"] = timing["word"].strip()
-                            if (
-                                len(subtitle) > 0
-                                and max_line_count is not None
-                                and (long_pause or line_count >= max_line_count)
-                                or seg_break
-                            ):
-                                # subtitle break
-                                yield subtitle
-                                subtitle = []
-                                line_count = 1
-                            elif line_len > 0:
-                                # line break
-                                line_count += 1
-                                timing["word"] = "\n" + timing["word"]
-                            line_len = len(timing["word"].strip())
-                        subtitle.append(timing)
-                        last = timing["start"]
-                    chunk_index += max_words_per_line
+                        # subtitle break
+                        yield subtitle
+                        subtitle = []
+                        line_count = 1
+                    elif line_len > 0:
+                        # line break
+                        line_count += 1
+                        timing["word"] = "\n" + timing["word"]
+                    line_len = len(timing["word"].strip())
+                subtitle.append(timing)
+                last = timing["start"]
+                if len(subtitle) >= max_words_per_line:
+                    yield subtitle
+                    subtitle = []
+                    line_len, line_count = 0, 1
             if len(subtitle) > 0:
                 yield subtitle
 
-        if len(result["segments"]) > 0 and "words" in result["segments"][0] and result["segments"][0]["words"]:
-            for subtitle in iterate_subtitles():
+        last: float = get_start(result["segments"]) or 0.0
+        for segment in result["segments"]:
+            words = segment.get("words")
+            if not words or not usable_words(words):
+                yield from segment_level_cues(segment)
+                continue
+
+            speaker = segment_speaker(segment)
+            first_chunk = True
+            for subtitle in word_chunks(spaced_words(segment), last):
+                last = subtitle[-1]["end"]
                 subtitle_start = self.format_timestamp(subtitle[0]["start"])
                 subtitle_end = self.format_timestamp(subtitle[-1]["end"])
                 subtitle_text = "".join([render_word_label(word) for word in subtitle])
-                if highlight_words:
-                    last = subtitle_start
-                    all_words = [render_word_label(timing) for timing in subtitle]
-                    for i, this_word in enumerate(subtitle):
-                        start = self.format_timestamp(this_word["start"])
-                        end = self.format_timestamp(this_word["end"])
-                        if last != start:
-                            yield last, start, subtitle_text
-
-                        yield start, end, "".join(
-                            [
-                                re.sub(r"^(\s*)(.*)$", r"\1<u>\2</u>", word)
-                                if j == i
-                                else word
-                                for j, word in enumerate(all_words)
-                            ]
-                        )
-                        last = end
+                if first_chunk and speaker:
+                    subtitle_text = f"[{speaker}] {subtitle_text}"
+                first_chunk = False
 
                 if align_lrc_words:
                     lrc_aligned_words = [
-                        f"[{self.format_timestamp(sub['start'])}]{render_word_label(sub)}"
-                        for sub in subtitle
+                        f"[{self.format_timestamp(word['start'])}]{render_word_label(word)}"
+                        for word in subtitle
                     ]
-                    l_start, l_end = self.format_timestamp(subtitle[-1]['start']), self.format_timestamp(subtitle[-1]['end'])
+                    last_word = subtitle[-1]
                     lrc_aligned_words[-1] = (
-                        f"[{l_start}]{render_word_label(subtitle[-1])}[{l_end}]"
+                        f"[{self.format_timestamp(last_word['start'])}]"
+                        f"{render_word_label(last_word)}"
+                        f"[{self.format_timestamp(last_word['end'])}]"
                     )
-                    lrc_aligned_words = ' '.join(lrc_aligned_words)
-                    yield None, None, lrc_aligned_words
+                    # The word labels already carry the original inter-word spaces.
+                    yield None, None, "".join(lrc_aligned_words)
+
+                elif highlight_words:
+                    # Per-word karaoke cues only: no overlapping whole-segment duplicate.
+                    all_words = [render_word_label(word) for word in subtitle]
+                    for i, word_timing in enumerate(subtitle):
+                        word_start = self.format_timestamp(word_timing["start"])
+                        word_end = self.format_timestamp(word_timing["end"])
+                        yield word_start, word_end, "".join(
+                            [
+                                re.sub(r"^(\s*)(.*)$", r"\1<u>\2</u>", label)
+                                if j == i
+                                else label
+                                for j, label in enumerate(all_words)
+                            ]
+                        )
 
                 else:
                     yield subtitle_start, subtitle_end, subtitle_text
-        else:
-            for segment in result["segments"]:
-                if segment["text"] is None:
-                    continue
-
-                segment_start = self.format_timestamp(segment["start"])
-                segment_end = self.format_timestamp(segment["end"])
-                confidence_label = render_segment_confidence(segment)
-                segment_text = segment["text"].strip().replace("-->", "->")
-                if confidence_label:
-                    segment_text = f"{segment_text} {confidence_label}"
-                yield segment_start, segment_end, segment_text
 
     def format_timestamp(self, seconds: float):
         return format_timestamp(
@@ -320,25 +500,17 @@ class WriteVTT(SubtitlesWriter):
     ):
         print("WEBVTT\n", file=file)
         for start, end, text in self.iterate_result(result, options, **kwargs):
+            require_timed_cue(self.extension, start, end)
             print(f"{start} --> {end}\n{text}\n", file=file, flush=True)
 
     def to_segments(self, file_path: str) -> List[Segment]:
         segments = []
 
-        blocks = read_file(file_path).split('\n\n')
-
-        for block in blocks:
-            if block.strip() != '' and not block.strip().startswith("WEBVTT"):
-                lines = block.strip().split('\n')
-                time_line = lines[0].split(" --> ")
-                start, end = time_str_to_seconds(time_line[0], self.decimal_marker), time_str_to_seconds(time_line[1], self.decimal_marker)
-                sentence = ' '.join(lines[1:])
-
-                segments.append(Segment(
-                    start=start,
-                    end=end,
-                    text=sentence
-                ))
+        for block, start_line in split_cue_blocks(read_subtitle_lines(file_path)):
+            segment = parse_cue_block(block, self.decimal_marker, file_path,
+                                      f"cue at line {start_line}", require_timing=False)
+            if segment is not None:
+                segments.append(segment)
 
         return segments
 
@@ -354,26 +526,17 @@ class WriteSRT(SubtitlesWriter):
         for i, (start, end, text) in enumerate(
             self.iterate_result(result, options, **kwargs), start=1
         ):
+            require_timed_cue(self.extension, start, end)
             print(f"{i}\n{start} --> {end}\n{text}\n", file=file, flush=True)
 
     def to_segments(self, file_path: str) -> List[Segment]:
         segments = []
 
-        blocks = read_file(file_path).split('\n\n')
-
-        for block in blocks:
-            if block.strip() != '':
-                lines = block.strip().split('\n')
-                index = lines[0]
-                time_line = lines[1].split(" --> ")
-                start, end = time_str_to_seconds(time_line[0], self.decimal_marker), time_str_to_seconds(time_line[1], self.decimal_marker)
-                sentence = ' '.join(lines[2:])
-
-                segments.append(Segment(
-                    start=start,
-                    end=end,
-                    text=sentence
-                ))
+        for block, start_line in split_cue_blocks(read_subtitle_lines(file_path)):
+            segment = parse_cue_block(block, self.decimal_marker, file_path,
+                                      f"cue at line {start_line}")
+            if segment is not None:
+                segments.append(segment)
 
         return segments
 
@@ -386,38 +549,23 @@ class WriteLRC(SubtitlesWriter):
     def write_result(
         self, result: dict, file: TextIO, options: Optional[dict] = None, **kwargs
     ):
-        for i, (start, end, text) in enumerate(
-            self.iterate_result(result, options, **kwargs), start=1
-        ):
-            if "align_lrc_words" in kwargs and kwargs["align_lrc_words"]:
+        options = {**(options or {}), **kwargs}
+        align_words = options.get("align_lrc_words", False)
+        for start, end, text in self.iterate_result(result, options):
+            if align_words:
                 print(f"{text}\n", file=file, flush=True)
+            elif end is None:
+                # A conventional lyric line has a start stamp and no end stamp.
+                print(f"[{start}]{text}\n", file=file, flush=True)
             else:
                 print(f"[{start}]{text}[{end}]\n", file=file, flush=True)
 
     def to_segments(self, file_path: str) -> List[Segment]:
         segments = []
 
-        blocks = read_file(file_path).split('\n')
-
-        for block in blocks:
-            if block.strip() != '':
-                lines = block.strip()
-                pattern = r'(\[.*?\])'
-                parts = re.split(pattern, lines)
-                parts = [part.strip() for part in parts if part]
-
-                for i, part in enumerate(parts):
-                    sentence_i = i%2
-                    if sentence_i == 1:
-                        start_str, text, end_str = parts[sentence_i-1], parts[sentence_i], parts[sentence_i+1]
-                        start_str, end_str = start_str.replace("[", "").replace("]", ""), end_str.replace("[", "").replace("]", "")
-                        start, end = time_str_to_seconds(start_str, self.decimal_marker), time_str_to_seconds(end_str, self.decimal_marker)
-
-                        segments.append(Segment(
-                            start=start,
-                            end=end,
-                            text=text,
-                        ))
+        for lineno, line in enumerate(read_subtitle_lines(file_path), start=1):
+            if line.strip() != '':
+                segments.extend(parse_lrc_line(line.strip(), self.decimal_marker, file_path, lineno))
 
         return segments
 
@@ -439,6 +587,11 @@ class WriteTSV(ResultWriter):
     ):
         print("start", "end", "text", sep="\t", file=file)
         for segment in result["segments"]:
+            if segment["start"] is None or segment["end"] is None:
+                raise gr.Error(
+                    "TSV needs a start and an end timestamp for every segment, but the "
+                    "input is untimed text (for example a .txt file). Use TXT, LRC, SRT or VTT."
+                )
             print(round(1000 * segment["start"]), file=file, end="\t")
             print(round(1000 * segment["end"]), file=file, end="\t")
             print(segment["text"].strip().replace("\t", " "), file=file, flush=True)
@@ -500,14 +653,15 @@ def generate_file(
     file_path = os.path.join(output_dir, f"{output_file_name}.{output_format}")
     file_writer = get_writer(output_format=output_format, output_dir=output_dir)
 
-    if isinstance(file_writer, WriteLRC) and kwargs.get("highlight_words", False):
-        kwargs["highlight_words"], kwargs["align_lrc_words"] = False, True
+    # Writer options arrive both as a dict and as keyword arguments; normalize once.
+    writer_options = {**(options or {}), **kwargs}
+    if output_format == "lrc" and writer_options.get("highlight_words"):
+        writer_options["highlight_words"], writer_options["align_lrc_words"] = False, True
 
     file_writer(
         result=result,
         output_file_name=output_file_name,
-        options=options,
-        **kwargs,
+        options=writer_options,
     )
     content = read_file(file_path)
     return content, file_path

@@ -82,6 +82,9 @@ class TranslationBase(ABC):
             if fileobjs and isinstance(fileobjs[0], gr.utils.NamedString):
                 fileobjs = [file.name for file in fileobjs]
 
+            if not fileobjs:
+                raise gr.Error("No subtitle files selected for translation.")
+
             self.cache_parameters(model_size=model_size,
                                   src_lang=src_lang,
                                   tgt_lang=tgt_lang,

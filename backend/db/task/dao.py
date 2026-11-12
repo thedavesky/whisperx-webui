@@ -1,9 +1,22 @@
+from datetime import datetime
 from typing import Dict, Any
 from sqlalchemy.orm import Session
-from fastapi import Depends
 
-from ..db_instance import handle_database_errors, get_db_session
+from modules.utils.logger import get_logger
+from ..db_instance import handle_database_errors
 from .models import Task, TasksResult, TaskStatus
+
+
+logger = get_logger()
+
+INTERRUPTED_REASON = "Interrupted by a server restart before the task finished."
+NON_TERMINAL_STATUSES = [
+    TaskStatus.QUEUED,
+    TaskStatus.PENDING,
+    TaskStatus.IN_PROGRESS,
+    TaskStatus.RETRYING,
+    TaskStatus.PAUSED,
+]
 
 
 @handle_database_errors
@@ -56,6 +69,49 @@ def update_task_status_in_db(
         for key, value in update_data.items():
             setattr(task, key, value)
         session.commit()
+
+
+def record_task_outcome(identifier: str, status: TaskStatus, message: str) -> None:
+    """Persist a terminal task state on a best-effort basis.
+
+    A database outage while recording the outcome is logged, never turned into a
+    success, and never replaces the caller's original exception.
+    """
+    try:
+        update_task_status_in_db(
+            identifier=identifier,
+            update_data={
+                "uuid": identifier,
+                "status": status,
+                "error": message,
+                "progress": 1.0,
+                "updated_at": datetime.utcnow(),
+            },
+        )
+    except Exception as e:
+        logger.error(
+            "Task %s could not be recorded as %s in the database: %s",
+            identifier, status, e,
+        )
+
+
+@handle_database_errors
+def reconcile_interrupted_tasks(session: Session) -> int:
+    """Fail queued/running rows left over from a previous process.
+
+    Completed and cancelled history is untouched; the audio and the background
+    execution are gone, so those tasks can never finish.
+    """
+    stale = session.query(Task).filter(Task.status.in_(NON_TERMINAL_STATUSES)).all()
+    for task in stale:
+        task.status = TaskStatus.FAILED
+        task.error = INTERRUPTED_REASON
+        task.progress = 1.0
+        task.updated_at = datetime.utcnow()
+    session.commit()
+    if stale:
+        logger.info(f"Marked {len(stale)} interrupted task(s) as failed on startup.")
+    return len(stale)
 
 
 @handle_database_errors

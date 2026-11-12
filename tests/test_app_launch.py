@@ -25,9 +25,6 @@ class DummyMusicSeparator:
 
 
 class DummyWhisperInference:
-    def __init__(self, *_, **__):
-        self.music_separator = DummyMusicSeparator()
-
     available_models = ["tiny"]
     available_langs = ["en"]
     available_compute_types = ["cpu"]
@@ -38,16 +35,24 @@ class DummyWhisperInference:
     available_diarization_compute_types = ["float32"]
     diarization_compute_type = "float32"
 
+    def __init__(self, *_, **__):
+        self.music_separator = DummyMusicSeparator()
+        self.calls = []
+
     @staticmethod
     def transcribe_file(*_, **__):
         return "ok", []
 
-    @staticmethod
-    def transcribe_youtube(*_, **__):
+    def transcribe_youtube(self, youtube_link, file_format="SRT", add_timestamp=True,
+                           progress=None, *pipeline_params):
+        self.calls.append(("youtube", youtube_link, file_format, add_timestamp,
+                           callable(progress), pipeline_params))
         return "ok", []
 
-    @staticmethod
-    def transcribe_mic(*_, **__):
+    def transcribe_mic(self, mic_audio, file_format="SRT", add_timestamp=True,
+                       progress=None, *pipeline_params):
+        self.calls.append(("mic", mic_audio, file_format, add_timestamp,
+                           callable(progress), pipeline_params))
         return "ok", []
 
     @staticmethod
@@ -91,7 +96,7 @@ FAKE_DEFAULTS = {
     "diarization": {
         "is_diarize": False,
         "diarization_device": "cpu",
-        "compute_type": "float32",
+        "diarization_compute_type": "float32",
         "hf_token": "",
         # Left over from an older release of the WebUI: the WhisperX diarization
         # toggle no longer exists and must not break launching or leak into params.
@@ -136,6 +141,12 @@ class DummyComponent:
         return self
 
     def stream(self, *_, **__):
+        return self
+
+    def unrender(self):
+        return self
+
+    def render(self):
         return self
 
 
@@ -193,6 +204,7 @@ def _build_gradio_stub(real_gr):
         Image=DummyComponent,
         HTML=DummyComponent,
         Audio=DummyComponent,
+        Progress=lambda: (lambda *_, **__: None),
     )
 
 
@@ -293,25 +305,52 @@ def test_app_launch(app_module):
 
 
 def test_pipeline_parameters_round_trip(app_with_components):
-    """The Gradio components must map back onto the pipeline params positionally."""
+    """The rendered Gradio components must map back onto the pipeline params."""
     app, args = app_with_components
     app_instance = app.App(args)
     pipeline_inputs, _, _ = app_instance.create_pipeline_inputs()
 
+    # The UI renders a subset of the Whisper fields; the rest keep model defaults.
     expected_count = (
-        len(WhisperParams.model_fields)
+        len(WhisperParams.GRADIO_FIELDS)
         + len(DiarizationParams.model_fields)
         + len(BGMSeparationParams.model_fields)
     )
     assert len(pipeline_inputs) == expected_count
     assert len(app_instance.pipeline_param_defaults) == expected_count
 
-    rebuilt = TranscriptionPipelineParams.from_list(list(app_instance.pipeline_param_defaults))
+    rebuilt = app_instance._pipeline_from_values(*app_instance.pipeline_param_defaults)
     assert rebuilt.whisper.model_size == FAKE_DEFAULTS["whisper"]["model_size"]
     assert rebuilt.whisper.batch_size == WhisperParams.model_fields["batch_size"].default
     assert rebuilt.diarization.diarization_device == "cpu"
     assert rebuilt.bgm_separation.uvr_device == "cpu"
     assert rebuilt.bgm_separation.uvr_model_size == FAKE_DEFAULTS["bgm_separation"]["uvr_model_size"]
+
+
+def test_transcribe_callbacks_pass_bound_arguments(app_module):
+    """Mic/YouTube callbacks must bind input, format, timestamp, and progress."""
+    app, args = app_module
+    app_instance = app.App(args)
+    params = TranscriptionPipelineParams()
+    # The UI posts rendered Whisper fields in GRADIO_FIELDS order, then all
+    # diarization and BGM fields.
+    ui_values = (
+        [getattr(params.whisper, field) for field in WhisperParams.GRADIO_FIELDS]
+        + params.diarization.to_list()
+        + params.bgm_separation.to_list()
+    )
+
+    app_instance._transcribe_mic("/tmp/mic.wav", "WebVTT", True, *ui_values)
+    app_instance._transcribe_youtube("https://youtu.be/x", "SRT", False, *ui_values)
+
+    calls = app_instance.whisper_inf.calls
+    assert len(calls) == 2
+    for tab, audio_input, file_format, add_timestamp, progress_callable, pipeline_values in calls:
+        assert progress_callable, f"{tab} received a non-callable progress argument"
+        assert len(pipeline_values) == len(params.to_list())
+        assert TranscriptionPipelineParams.from_list(list(pipeline_values)) == params
+    assert calls[0][1:4] == ("/tmp/mic.wav", "WebVTT", True)
+    assert calls[1][1:4] == ("https://youtu.be/x", "SRT", False)
 
 
 def test_diarization_provider_option_is_not_exposed(app_with_components):

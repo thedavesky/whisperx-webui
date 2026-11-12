@@ -1,9 +1,12 @@
+import ast
 import gradio as gr
+import math
 import torch
 from typing import ClassVar, Optional, Dict, List, Union, NamedTuple
 from fastapi import Query
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from gradio_i18n import Translate, gettext as _
+from transformers.models.whisper.tokenization_whisper import LANGUAGES, TO_LANGUAGE_CODE
 from copy import deepcopy
 import yaml
 
@@ -35,7 +38,7 @@ class Word(BaseModel):
 
 
 class BaseParams(BaseModel):
-    model_config = ConfigDict(protected_namespaces=())
+    model_config = ConfigDict(protected_namespaces=(), validate_assignment=True)
 
     def to_dict(self) -> Dict:
         return self.model_dump()
@@ -46,6 +49,11 @@ class BaseParams(BaseModel):
     @classmethod
     def from_list(cls, data_list: List) -> 'BaseParams':
         field_names = list(cls.model_fields.keys())
+        if len(data_list) != len(field_names):
+            raise ValueError(
+                f"{cls.__name__} requires exactly {len(field_names)} parameters, "
+                f"received {len(data_list)}"
+            )
         return cls(**dict(zip(field_names, data_list)))
 
 
@@ -54,8 +62,12 @@ class BaseParams(BaseModel):
 class DiarizationParams(BaseParams):
     """Speaker diarization parameters"""
     is_diarize: bool = Field(default=False, description="Enable speaker diarization")
-    diarization_device: str = Field(default="cuda", description="Device to run Diarization model.")
-    compute_type: str = Field(default="float32", description="Computation type for diarization")
+    diarization_device: str = Field(default="cuda", min_length=1, description="Device to run Diarization model.")
+    diarization_compute_type: str = Field(
+        default="float32",
+        min_length=1,
+        description="Computation type for diarization (separate from the ASR compute_type)"
+    )
     hf_token: str = Field(
         default="",
         description="Hugging Face token for downloading diarization models"
@@ -75,14 +87,14 @@ class DiarizationParams(BaseParams):
                          available_devices: Optional[List] = None,
                          device: Optional[str] = None,
                          available_compute_types: Optional[List] = None,
-                         compute_type: Optional[str] = None) -> List[gr.components.base.FormComponent]:
+                         diarization_compute_type: Optional[str] = None) -> List[gr.components.base.FormComponent]:
         defaults = defaults or {}
         device_choices = ["cpu", "cuda", "xpu"] if available_devices is None else available_devices
         default_device = defaults.get("diarization_device", device)
         if device_choices and default_device not in device_choices:
             default_device = device_choices[0]
-        compute_type_choices = available_compute_types or [cls.model_fields["compute_type"].default]
-        compute_type_value = defaults.get("compute_type", compute_type)
+        compute_type_choices = available_compute_types or [cls.model_fields["diarization_compute_type"].default]
+        compute_type_value = defaults.get("diarization_compute_type", diarization_compute_type)
         if compute_type_value not in compute_type_choices:
             compute_type_value = compute_type_choices[0]
         return [
@@ -124,9 +136,10 @@ class BGMSeparationParams(BaseParams):
     is_separate_bgm: bool = Field(default=False, description="Enable background music separation")
     uvr_model_size: str = Field(
         default="UVR-MDX-NET-Inst_HQ_4",
+        min_length=1,
         description="UVR model size"
     )
-    uvr_device: str = Field(default="cuda", description="Device to run UVR model.")
+    uvr_device: str = Field(default="cuda", min_length=1, description="Device to run UVR model.")
     segment_size: int = Field(
         default=256,
         gt=0,
@@ -181,7 +194,7 @@ class BGMSeparationParams(BaseParams):
 
 class WhisperParams(BaseParams):
     """Whisper parameters"""
-    model_size: str = Field(default="large-v2", description="Whisper model size")
+    model_size: str = Field(default="large-v2", min_length=1, description="Whisper model size")
     lang: Optional[str] = Field(default=None, description="Source language of the file to transcribe")
     is_translate: bool = Field(default=False, description="Translate speech to English end-to-end")
     beam_size: int = Field(default=5, ge=1, description="Beam size for decoding")
@@ -195,7 +208,7 @@ class WhisperParams(BaseParams):
         le=1.0,
         description="Threshold for detecting silence"
     )
-    compute_type: str = Field(default="int8", description="Computation type for transcription")
+    compute_type: str = Field(default="int8", min_length=1, description="Computation type for transcription")
     best_of: int = Field(default=5, ge=1, description="Number of candidates when sampling")
     patience: float = Field(default=1.0, gt=0, description="Beam search patience factor")
     condition_on_previous_text: bool = Field(
@@ -245,8 +258,8 @@ class WhisperParams(BaseParams):
         default="\"'.。,，!！?？:：”)]}、",
         description="Punctuations to merge with previous word"
     )
-    max_new_tokens: Optional[int] = Field(default=None, description="Maximum number of new tokens per chunk")
-    chunk_length: Optional[int] = Field(default=30, description="Length of audio segments in seconds")
+    max_new_tokens: Optional[int] = Field(default=None, ge=1, description="Maximum number of new tokens per chunk")
+    chunk_length: Optional[int] = Field(default=30, gt=0, description="Length of audio segments in seconds")
     hallucination_silence_threshold: Optional[float] = Field(
         default=None,
         description="Threshold for skipping silent periods in hallucination detection"
@@ -254,12 +267,12 @@ class WhisperParams(BaseParams):
     hotwords: Optional[str] = Field(default=None, description="Hotwords/hint phrases for the model")
     language_detection_threshold: Optional[float] = Field(
         default=0.5,
-        description="Threshold for language detection probability"
+        description="Threshold for language detection probability (not used by the WhisperX pipeline; keep the default)",
     )
     language_detection_segments: int = Field(
         default=1,
         gt=0,
-        description="Number of segments for language detection"
+        description="Number of segments for language detection (not used by the WhisperX pipeline; keep the default)",
     )
     batch_size: int = Field(default=24, gt=0, description="Batch size for processing")
     whisperx_confidence_threshold: float = Field(
@@ -287,22 +300,52 @@ class WhisperParams(BaseParams):
 
     @field_validator('lang')
     def validate_lang(cls, v):
-        from modules.utils.constants import AUTOMATIC_DETECTION
-        return None if v == AUTOMATIC_DETECTION else v
+        """Accept a language code, its display name, or the automatic-detection label."""
+        if v in (None, AUTOMATIC_DETECTION):
+            return None
+        if v in LANGUAGES:
+            return v
+        if v in TO_LANGUAGE_CODE:
+            return TO_LANGUAGE_CODE[v]
+        raise ValueError(
+            f"Unsupported language '{v}'. Use a Whisper language code, a display name, "
+            f"or '{AUTOMATIC_DETECTION}'."
+        )
 
-    @field_validator('suppress_tokens')
+    @field_validator('suppress_tokens', mode="before")
     def validate_supress_tokens(cls, v):
-        import ast
-        try:
-            if isinstance(v, str):
-                suppress_tokens = ast.literal_eval(v)
-                if not isinstance(suppress_tokens, list):
+        if v is None:
+            return [-1]
+        if isinstance(v, str):
+            # One query-string value can carry the whole list as a literal, e.g. "[-1]".
+            try:
+                v = ast.literal_eval(v)
+            except (ValueError, SyntaxError) as e:
+                raise ValueError(f"Invalid Suppress Tokens. The value must be type of List[int]: {e}")
+        if not isinstance(v, list):
+            if isinstance(v, int) and not isinstance(v, bool):
+                # A single `?suppress_tokens=-1` param is the one-token list.
+                return [v]
+            raise ValueError("Invalid Suppress Tokens. The value must be type of List[int]")
+        tokens = []
+        for token in v:
+            if isinstance(token, str):
+                # Repeated `?suppress_tokens=1&suppress_tokens=2` params arrive as strings.
+                try:
+                    token = ast.literal_eval(token)
+                except (ValueError, SyntaxError):
                     raise ValueError("Invalid Suppress Tokens. The value must be type of List[int]")
-                return suppress_tokens
-            if isinstance(v, list):
-                return v
-        except Exception as e:
-            raise ValueError(f"Invalid Suppress Tokens. The value must be type of List[int]: {e}")
+            if isinstance(token, bool) or not isinstance(token, int):
+                raise ValueError("Invalid Suppress Tokens. The value must be type of List[int]")
+            tokens.append(token)
+        return tokens
+
+    @model_validator(mode="after")
+    def validate_finite_numbers(self):
+        for name, value in self.model_dump().items():
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError(f"{name} must be a finite number")
+        return self
 
     GRADIO_FIELDS: ClassVar[List[str]] = [
         "model_size",
@@ -501,18 +544,19 @@ class TranscriptionPipelineParams(BaseModel):
         data_list = deepcopy(pipeline_list)
 
         whisper_expected = len(WhisperParams.model_fields)
-        whisper_list = data_list[:whisper_expected]
-        data_list = data_list[len(whisper_list):]
-
         diarization_expected = len(DiarizationParams.model_fields)
-        diarization_list = data_list[:diarization_expected]
-        data_list = data_list[len(diarization_list):]
-
         bgm_expected = len(BGMSeparationParams.model_fields)
-        bgm_sep_list = data_list[:bgm_expected]
+        expected = whisper_expected + diarization_expected + bgm_expected
+        if len(data_list) != expected:
+            raise ValueError(
+                f"TranscriptionPipelineParams requires exactly {expected} parameters, "
+                f"received {len(data_list)}"
+            )
 
         return TranscriptionPipelineParams(
-            whisper=WhisperParams.from_list(whisper_list),
-            diarization=DiarizationParams.from_list(diarization_list),
-            bgm_separation=BGMSeparationParams.from_list(bgm_sep_list)
+            whisper=WhisperParams.from_list(data_list[:whisper_expected]),
+            diarization=DiarizationParams.from_list(
+                data_list[whisper_expected:whisper_expected + diarization_expected]
+            ),
+            bgm_separation=BGMSeparationParams.from_list(data_list[whisper_expected + diarization_expected:])
         )
